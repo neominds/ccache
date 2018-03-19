@@ -1,0 +1,17 @@
+CA Certificate creation
+-----------------------
+1. openssl ecparam -name prime256v1 -genkey -out myrootca.key
+2. openssl req -new -x509 -days 3650 -key myrootca.key -out myroot.crt -config ./openssl.cnf
+3. perl mk_new_ca_dir.pl 
+4. mv myroot.crt CondorRootCA/signing-ca-1.crt
+5. mv myrootca.key CondorRootCA/signing-ca-1.key
+6. openssl req -newkey ec:<(openssl ecparam -name prime256v1) -keyout zmiller.key -config ./openssl.cnf -out zmiller.req
+7. openssl ca -config ./openssl.cnf -out zmiller.crt -infiles zmiller.req
+
+Convert crt to der
+------------------
+openssl x509 -in zmiller.crt -outform der -out t.der
+
+To view the certificate
+-----------------------
+openssl x509 -in zmiller.crt -text -noout
