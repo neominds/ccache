@@ -1,0 +1,84 @@
+#Test - 1: 
+create
+sign self
+print_cert
+expect pass insert
+editbuf serial *a2
+editbuf subject *a2
+editbuf subjkeyid *a2
+create
+sign
+print_cert
+expect pass insert
+editbuf serial *a3
+editbuf subject *a3
+editbuf subjkeyid *a3
+create
+sign using serial *a2
+print_cert
+expect pass insert
+expect fail insert
+editbuf serial *a4
+editbuf subject *a4
+editbuf subjkeyid *a4
+create
+sign using serial *a3
+print_cert
+expect pass insert
+expect pass find
+editbuf serial *a5
+expect fail find
+print_index
+expect fail delete byslot 0
+expect pass delete byslot 4
+print_index
+expect pass check_sanity
+expect pass find byid serial *a3
+expect fail find byid serial *a9
+expect fail find byslot 4
+expect fail find bcbymac *ae
+expect fail find dlbymac *ae
+expect pass find byslot 3
+expect pass find bysubj subject *a2 skid *a2
+expect fail find bysubj subject *a9 skid *a2
+expect fail find bysubj subject *a2 skid *a9
+editbuf serial *a6
+editbuf altnames *ae
+create
+sign
+print_cert
+expect pass insert
+expect pass find bcbymac *ae
+editbuf serial *a7
+editbuf altnames *ad
+create
+sign
+expect pass insert
+expect pass find dlbymac *ad
+expect pass find issuer serial *a3
+print_index
+print_cache
+expect pass check_sanity
+expect fail delete byslot 0
+print_index
+print_cache
+expect fail delete byslot 6
+expect pass delete byid serial *a6
+expect fail find oper 0
+editbuf serial *a6
+editbuf subject *a6
+editbuf subjkeyid *a6
+editbuf policies AnyPolicy
+create
+sign
+expect pass insert
+editbuf serial *a8
+editbuf subject *a8
+editbuf subjkeyid *a8
+editbuf policies AnyPolicy
+create
+sign
+expect pass insert
+expect pass find oper 0
+expect pass find oper 6
+print Test1 complete.

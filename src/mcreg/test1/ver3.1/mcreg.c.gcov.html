@@ -1,0 +1,1214 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - test1.info - ver3.1/mcreg.c</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">ver3.1</a> - mcreg.c<span style="font-size: 80%;"> (source / <a href="mcreg.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">test1.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">436</td>
+            <td class="headerCovTableEntry">523</td>
+            <td class="headerCovTableEntryMed">83.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2018-03-22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryHi">92.3 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : #include &lt;stdio.h&gt;</a>
+<span class="lineNum">       2 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">       3 </span>            : #include &lt;unistd.h&gt;
+<span class="lineNum">       4 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">       5 </span>            : #include &lt;mc_cache.h&gt;
+<span class="lineNum">       6 </span>            : #include &lt;mc_cache_flash.h&gt;
+<span class="lineNum">       7 </span>            : #include &lt;asn.h&gt;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #define OPENSSL
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #ifdef OPENSSL
+<span class="lineNum">      12 </span>            : #include &lt;openssl/ec.h&gt;      // for EC_GROUP_new_by_curve_name, EC_GROUP_free, EC_KEY_new, EC_KEY_set_group, EC_KEY_generate_key, EC_KEY_free
+<span class="lineNum">      13 </span>            : #include &lt;openssl/ecdsa.h&gt;   // for ECDSA_do_sign, ECDSA_do_verify
+<span class="lineNum">      14 </span>            : #include &lt;openssl/obj_mac.h&gt; // for NID_secp192k1
+<span class="lineNum">      15 </span>            : #include &lt;openssl/sha.h&gt; // for SHA256
+<span class="lineNum">      16 </span>            : #endif
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #ifdef LINUX
+<span class="lineNum">      19 </span>            : #include &lt;arpa/inet.h&gt;
+<span class="lineNum">      20 </span>            : #endif
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : #define RESULT_PASS 0
+<span class="lineNum">      23 </span>            : #define RESULT_FAIL     1
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : //tokens
+<span class="lineNum">      26 </span>            : #define TOKEN_EXPECT            1
+<span class="lineNum">      27 </span>            : #define TOKEN_PASS              2
+<span class="lineNum">      28 </span>            : #define TOKEN_FAIL              3
+<span class="lineNum">      29 </span>            : #define TOKEN_EDITBUF           5
+<span class="lineNum">      30 </span>            : #define TOKEN_INSERT            6
+<span class="lineNum">      31 </span>            : #define TOKEN_DELETE            9
+<span class="lineNum">      32 </span>            : #define TOKEN_FIND              10
+<span class="lineNum">      33 </span>            : #define TOKEN_BYID              11
+<span class="lineNum">      34 </span>            : #define TOKEN_BYSLOT            12
+<span class="lineNum">      35 </span>            : #define TOKEN_BYPUBKEY          13
+<span class="lineNum">      36 </span>            : #define TOKEN_BYSUBIDTYPE       14
+<span class="lineNum">      37 </span>            : #define TOKEN_BCBYMAC           15
+<span class="lineNum">      38 </span>            : #define TOKEN_DLBYMAC           16
+<span class="lineNum">      39 </span>            : #define TOKEN_PRINT_INDEX       17
+<span class="lineNum">      40 </span>            : #define TOKEN_PRINT_CACHE       18
+<span class="lineNum">      41 </span>            : #define TOKEN_PRINT_MSG         19
+<span class="lineNum">      42 </span>            : #define TOKEN_PROMPT            20
+<span class="lineNum">      43 </span>            : #define TOKEN_EXIT              21
+<span class="lineNum">      44 </span>            : #define TOKEN_PRINT_CERT        22
+<span class="lineNum">      45 </span>            : #define TOKEN_ISSUER            23
+<span class="lineNum">      46 </span>            : #define TOKEN_CREATE            24
+<span class="lineNum">      47 </span>            : #define TOKEN_SIGN              25
+<span class="lineNum">      48 </span>            : #define TOKEN_USING             26
+<span class="lineNum">      49 </span>            : #define TOKEN_SELF              27
+<span class="lineNum">      50 </span>            : #define TOKEN_CHECK_SANITY      28
+<span class="lineNum">      51 </span>            : #define TOKEN_NEWPAIR           29
+<span class="lineNum">      52 </span>            : #define TOKEN_OPER              30
+<span class="lineNum">      53 </span>            : #define TOKEN_BYSUBJ            31
+<span class="lineNum">      54 </span>            : #define TOKEN_SUBJECT           32
+<span class="lineNum">      55 </span>            : #define TOKEN_SKID              33
+<span class="lineNum">      56 </span>            : #define TOKEN_SERIAL            34
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : #define CERT_ELEMENT_MAXLEN_SERIALNO    9//8?
+<span class="lineNum">      59 </span>            : #define CERT_ELEMENT_MAXLEN_SUBJECT     102
+<span class="lineNum">      60 </span>            : #define CERT_ELEMENT_MAXLEN_ISSUER      102
+<span class="lineNum">      61 </span>            : #define CERT_ELEMENT_MAXLEN_ALTNAMES    8
+<span class="lineNum">      62 </span>            : #define CERT_ELEMENT_MAXLEN_POLICIES    16
+<span class="lineNum">      63 </span>            : #define CERT_ELEMENT_MAXLEN_AUTHKEYID   20
+<span class="lineNum">      64 </span>            : #define CERT_ELEMENT_MAXLEN_SUBJKEYID   20
+<span class="lineNum">      65 </span>            : #define CERT_ELEMENT_MAXLEN_PUBKEY      65
+<span class="lineNum">      66 </span>            : #define CERT_ELEMENT_MAXLEN_NOTAFTER    8
+<span class="lineNum">      67 </span>            : #define CERT_ELEMENT_MAXLEN_SIGNATURE   72
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            : extern void get_field_from_cert_cache(void *dest, uint16_t n, uint8_t index, uint16_t offset);
+<span class="lineNum">      70 </span>            : extern void get_fullcert_from_cert_cache(void *dest, uint8_t index);
+<span class="lineNum">      71 </span>            : void hexdump(uint8_t *p, uint32_t size);
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : int8_t g_strtok_current[512];
+<span class="lineNum">      75 </span>            : char *g_strtok_strptr;
+<span class="lineNum">      76 </span>            : CertBuffer ram_cert;
+<span class="lineNum">      77 </span>            : uint8_t der_cert[] = { 0x30,0x82,0x02,0x0c,0x30,0x82,0x01,0xb4,0xa0,0x03,0x02,0x01,0x02,0x02,0x09,0x00,0x89,0x79,0x5c,0xed,0xc9,0x18,0xc8,0x3f,0x30,0x09,0x06,0x07,0x2a,0x86,0x48,0xce,0x3d,0x04,0x01,0x30,0x64,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x06,0x13,0x02,0x69,0x6e,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x08,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x07,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x0a,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x0b,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x03,0x0c,0x02,0x6e,0x65,0x31,0x14,0x30,0x12,0x06,0x09,0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x09,0x01,0x16,0x05,0x6e,0x65,0x40,0x6e,0x65,0x30,0x1e,0x17,0x0d,0x31,0x38,0x30,0x33,0x30,0x37,0x31,0x32,0x31,0x37,0x31,0x39,0x5a,0x17,0x0d,0x32,0x30,0x30,0x33,0x30,0x36,0x31,0x32,0x31,0x37,0x31,0x39,0x5a,0x30,0x64,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x06,0x13,0x02,0x69,0x6e,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x08,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x07,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x0a,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x0b,0x0c,0x02,0x6e,0x65,0x31,0x0b,0x30,0x09,0x06,0x03,0x55,0x04,0x03,0x0c,0x02,0x6e,0x65,0x31,0x14,0x30,0x12,0x06,0x09,0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x09,0x01,0x16,0x05,0x6e,0x65,0x40,0x6e,0x65,0x30,0x59,0x30,0x13,0x06,0x07,0x2a,0x86,0x48,0xce,0x3d,0x02,0x01,0x06,0x08,0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07,0x03,0x42,0x00,0x04,0x8d,0xca,0x5d,0xf0,0xda,0xbf,0xf4,0x79,0x82,0x37,0xee,0xab,0xf0,0x4f,0xb7,0x1d,0x5e,0x96,0xb5,0x71,0xf5,0x06,0xc3,0x0b,0x07,0xce,0x79,0xbf,0x1e,0xd7,0xf2,0x03,0xb3,0x2d,0x03,0xfe,0xe0,0x93,0x2a,0x7e,0xcb,0x71,0x7e,0x62,0x44,0x24,0xcb,0x57,0xd3,0x2e,0x28,0x30,0xaa,0x01,0x0e,0x31,0x31,0x20,0x96,0xb9,0x3b,0x79,0xbe,0x22,0xa3,0x50,0x30,0x4e,0x30,0x1d,0x06,0x03,0x55,0x1d,0x0e,0x04,0x16,0x04,0x14,0x55,0x4b,0x62,0xa0,0x5d,0xfe,0xb7,0x43,0x4b,0xe5,0xbf,0xdb,0x8b,0x5e,0xe8,0xbc,0x45,0xf3,0x64,0x08,0x30,0x1f,0x06,0x03,0x55,0x1d,0x23,0x04,0x18,0x30,0x16,0x80,0x14,0x55,0x4b,0x62,0xa0,0x5d,0xfe,0xb7,0x43,0x4b,0xe5,0xbf,0xdb,0x8b,0x5e,0xe8,0xbc,0x45,0xf3,0x64,0x08,0x30,0x0c,0x06,0x03,0x55,0x1d,0x13,0x04,0x05,0x30,0x03,0x01,0x01,0xff,0x30,0x09,0x06,0x07,0x2a,0x86,0x48,0xce,0x3d,0x04,0x01,0x03,0x47,0x00,0x30,0x44,0x02,0x20,0x5b,0x84,0x3b,0xd1,0x6f,0x47,0x80,0xa2,0xf6,0x7a,0x9d,0xad,0x84,0xda,0x31,0x41,0x87,0x50,0xe4,0x4e,0x8d,0x65,0xb7,0x2f,0x2f,0xaf,0x99,0x7b,0x02,0xad,0x2b,0xdc,0x02,0x20,0x59,0xb9,0x40,0xfe,0x11,0xfd,0xd9,0x71,0x33,0xae,0xdb,0x45,0x30,0x45,0xec,0xa6,0x74,0x8f,0xdf,0x08,0xd7,0x98,0x43,0xb2,0xf6,0xd5,0xed,0x84,0x49,0xdc,0x2a,0x0f };
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            : int8_t line[512];
+<span class="lineNum">      80 </span>            : uint8_t cdf_line[256];
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : #ifdef OPENSSL
+<span class="lineNum">      83 </span>            : EC_KEY *ram_cert_eckey;
+<span class="lineNum">      84 </span>            : #define KEY_STORE_SIZE 160
+<span class="lineNum">      85 </span>            : struct ec_key_store {
+<span class="lineNum">      86 </span>            :         uint8_t serialNumber[CERT_ELEMENT_MAXLEN_SERIALNO];
+<span class="lineNum">      87 </span>            :         uint8_t subject[CERT_ELEMENT_MAXLEN_SUBJECT];
+<span class="lineNum">      88 </span>            :         uint8_t issuer[CERT_ELEMENT_MAXLEN_SUBJECT];
+<span class="lineNum">      89 </span>            :         uint8_t subjkeyid[CERT_ELEMENT_MAXLEN_SUBJKEYID];
+<span class="lineNum">      90 </span>            :         uint8_t authkeyid[CERT_ELEMENT_MAXLEN_AUTHKEYID];
+<span class="lineNum">      91 </span>            :         uint8_t slot_no;
+<span class="lineNum">      92 </span>            :         EC_KEY *eckey;
+<span class="lineNum">      93 </span>            :         uint8_t pubkey[CERT_ELEMENT_MAXLEN_PUBKEY];
+<span class="lineNum">      94 </span>            : } key_store[KEY_STORE_SIZE];
+<span class="lineNum">      95 </span>            : uint8_t key_store_last;
+<span class="lineNum">      96 </span>            : 
+<a name="97"><span class="lineNum">      97 </span>            : error_t CheckmCertValidity(CertBuffer *pcert);</a>
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span><span class="lineCov">          9 : error_t CheckmCertValidity(CertBuffer *pcert)</span>
+<span class="lineNum">     100 </span>            : {
+<span class="lineNum">     101 </span>            : #ifdef LINUX
+<span class="lineNum">     102 </span>            :         time_t curr;
+<span class="lineNum">     103 </span><span class="lineCov">          9 :         curr = time(NULL);</span>
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineCov">          9 :         if (curr) {</span>
+<span class="lineNum">     106 </span>            :                 //TODO: compare x.509 notAfter (pcert-&gt;notAfter) to curr.
+<span class="lineNum">     107 </span><span class="lineCov">          9 :                 if (curr &gt;= pcert-&gt;dc.notBefore &amp;&amp; curr &lt;= pcert-&gt;dc.notAfter)</span>
+<span class="lineNum">     108 </span><span class="lineCov">          9 :                         return ERR_OK;</span>
+<span class="lineNum">     109 </span>            :         }
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :         printf(&quot;CheckmCertValidity: mCert expired.\n&quot;);</span>
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :         return ERR_MC_CACHE_CERT_EXPIRED;</span>
+<span class="lineNum">     112 </span>            : #endif
+<a name="113"><span class="lineNum">     113 </span>            : }</a>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineCov">          1 : void clear_ec_key_store()</span>
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span>            :         uint8_t i;
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">          9 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     120 </span><span class="lineCov">          8 :                 EC_KEY_free(key_store[i].eckey);</span>
+<span class="lineNum">     121 </span>            :         }
+<a name="122"><span class="lineNum">     122 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">          8 : error_t mCertVerifySignature(CertBuffer *pcert, CertBuffer *issuer)</span>
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span>            :         uint8_t hash[SHA256_DIGEST_LENGTH];
+<span class="lineNum">     127 </span>            :         SHA256_CTX sha256;
+<span class="lineNum">     128 </span>            :         uint8_t  verify_result;
+<span class="lineNum">     129 </span>            :         EC_KEY *sign_key;
+<span class="lineNum">     130 </span>            :         uint8_t i;
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineCov">          8 :         SHA256_Init(&amp;sha256);</span>
+<span class="lineNum">     133 </span><span class="lineCov">          8 :         SHA256_Update(&amp;sha256, pcert-&gt;buffer + pcert-&gt;dc.tbsCertificate.idx, pcert-&gt;dc.tbsCertificate.len);</span>
+<span class="lineNum">     134 </span><span class="lineCov">          8 :         SHA256_Final(hash, &amp;sha256);</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :         //printf(&quot;dbg==&gt; Verify hash:&quot;);
+<span class="lineNum">     137 </span>            :         //hexdump(hash, SHA256_DIGEST_LENGTH);
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :         //find eckey in key_store corresponding to issuer
+<span class="lineNum">     140 </span><span class="lineCov">         44 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     141 </span><span class="lineCov">         36 :                 if (!memcmp(key_store[i].serialNumber, issuer-&gt;buffer + issuer-&gt;dc.serialNumber.idx, issuer-&gt;dc.serialNumber.len))</span>
+<span class="lineNum">     142 </span><span class="lineCov">          8 :                         sign_key = key_store[i].eckey;</span>
+<span class="lineNum">     143 </span>            :         }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">          8 :         verify_result = ECDSA_verify(0,hash,SHA256_DIGEST_LENGTH,</span>
+<span class="lineNum">     146 </span><span class="lineCov">          8 :                         pcert-&gt;buffer + pcert-&gt;dc.signatureValue.idx, pcert-&gt;dc.signatureValue.len, sign_key);</span>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">          8 :         if (1 != verify_result) {</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :                 printf(&quot;Failed to verify EC Signature\n&quot;);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_CERT_SIGN_INVALID;</span>
+<span class="lineNum">     151 </span>            :         }
+<span class="lineNum">     152 </span>            :         else
+<span class="lineNum">     153 </span><span class="lineCov">          8 :                 return ERR_OK;</span>
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            :         printf(&quot;Issuer cert not found.\n&quot;);
+<span class="lineNum">     156 </span>            :         return ERR_MC_CACHE_CERT_SIGN_INVALID;
+<a name="157"><span class="lineNum">     157 </span>            : }</a>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span><span class="lineCov">          8 : int8_t create_new_ec_key_pair(EC_KEY **eckey, uint8_t *pubkey)</span>
+<span class="lineNum">     160 </span>            : {
+<span class="lineNum">     161 </span>            :         const EC_POINT *ecpoint;        
+<span class="lineNum">     162 </span>            :         EC_GROUP *ecgroup;
+<span class="lineNum">     163 </span>            :         uint8_t set_group_status;
+<span class="lineNum">     164 </span>            :         uint8_t gen_status; 
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineCov">          8 :         *eckey = EC_KEY_new();</span>
+<span class="lineNum">     167 </span><span class="lineCov">          8 :         if (*eckey == NULL) {</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :                 printf(&quot;EC_KEY_new() failed\n&quot;);</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     170 </span>            :         }
+<span class="lineNum">     171 </span><span class="lineCov">          8 :         ecgroup= EC_GROUP_new_by_curve_name(NID_secp256k1);</span>
+<span class="lineNum">     172 </span><span class="lineCov">          8 :         if (ecgroup == NULL) {</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :                 printf(&quot;EC_GROUP_new_by_curve() failed\n&quot;);</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     175 </span>            :         }
+<span class="lineNum">     176 </span><span class="lineCov">          8 :         set_group_status = EC_KEY_set_group(*eckey,ecgroup);</span>
+<span class="lineNum">     177 </span><span class="lineCov">          8 :         if (set_group_status != 1) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :                 printf(&quot;EC_KEY_set_group() failed\n&quot;);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     180 </span>            :         } 
+<span class="lineNum">     181 </span><span class="lineCov">          8 :         gen_status = EC_KEY_generate_key(*eckey);</span>
+<span class="lineNum">     182 </span><span class="lineCov">          8 :         if (gen_status != 1) {</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :                 printf(&quot;EC_KEY_generate_key() failed\n&quot;);</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     185 </span>            :         }
+<span class="lineNum">     186 </span><span class="lineCov">          8 :         ram_cert_eckey = *eckey;</span>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">          8 :         ecpoint = EC_KEY_get0_public_key(*eckey);</span>
+<span class="lineNum">     189 </span><span class="lineCov">          8 :         BN_CTX *ctx= BN_CTX_new();</span>
+<span class="lineNum">     190 </span><span class="lineCov">          8 :         uint8_t pubkey_len = EC_POINT_point2oct(ecgroup,ecpoint, POINT_CONVERSION_UNCOMPRESSED, pubkey,65,ctx);</span>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineCov">          8 :         if (pubkey_len &gt; ram_cert.dc.subjectPublicKey.len) {</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :                 printf(&quot;pubkey too big.\n&quot;);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     195 </span>            :         }
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">          8 :         return 0;</span>
+<a name="198"><span class="lineNum">     198 </span>            : }</a>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineCov">          8 : uint8_t add_keypair_to_store(uint8_t *serialNumber, uint8_t *subject, EC_KEY *eckey,uint8_t *pubkey, uint8_t *subjkeyid )</span>
+<span class="lineNum">     201 </span>            : {
+<span class="lineNum">     202 </span>            :         uint8_t i;
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">         36 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     205 </span><span class="lineCov">         28 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) break;</span>
+<span class="lineNum">     206 </span>            :         }
+<span class="lineNum">     207 </span><span class="lineCov">          8 :         if (i == KEY_STORE_SIZE) return 1;</span>
+<span class="lineNum">     208 </span><span class="lineCov">          8 :         if (i == key_store_last) key_store_last++;</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">          8 :         memcpy(&amp;(key_store[i].serialNumber), serialNumber, CERT_ELEMENT_MAXLEN_SERIALNO); </span>
+<span class="lineNum">     211 </span><span class="lineCov">          8 :         memcpy(&amp;(key_store[i].subject), subject, CERT_ELEMENT_MAXLEN_SUBJECT); </span>
+<span class="lineNum">     212 </span><span class="lineCov">          8 :         memcpy(&amp;(key_store[i].subjkeyid), subjkeyid, CERT_ELEMENT_MAXLEN_SUBJKEYID); </span>
+<span class="lineNum">     213 </span><span class="lineCov">          8 :         key_store[i].eckey = eckey;</span>
+<span class="lineNum">     214 </span><span class="lineCov">          8 :         memcpy(key_store[i].pubkey,pubkey,sizeof(key_store[i].pubkey));</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">          8 :         return 0;</span>
+<a name="217"><span class="lineNum">     217 </span>            : }</a>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineCov">          7 : static void update_issuer_to_store(uint8_t *serialNumber, uint8_t *issuer, uint8_t *authkeyid)</span>
+<span class="lineNum">     220 </span>            : {
+<span class="lineNum">     221 </span>            :         uint8_t i;
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineCov">         42 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     224 </span><span class="lineCov">         35 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     225 </span><span class="lineCov">          7 :                         memcpy(&amp;(key_store[i].issuer), issuer, CERT_ELEMENT_MAXLEN_ISSUER); </span>
+<span class="lineNum">     226 </span><span class="lineCov">          7 :                         memcpy(&amp;(key_store[i].authkeyid), authkeyid, CERT_ELEMENT_MAXLEN_AUTHKEYID); </span>
+<span class="lineNum">     227 </span>            :                 }
+<span class="lineNum">     228 </span>            :         }
+<a name="229"><span class="lineNum">     229 </span><span class="lineCov">          7 : }</span></a>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">          2 : static error_t get_subjkeyid_from_store(uint8_t *serialNumber, uint8_t **issuer_subjkeyid)</span>
+<span class="lineNum">     232 </span>            : {
+<span class="lineNum">     233 </span>            :         uint8_t i;
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">          5 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     236 </span><span class="lineCov">          5 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     237 </span><span class="lineCov">          2 :                         *issuer_subjkeyid = key_store[i].subjkeyid;</span>
+<span class="lineNum">     238 </span><span class="lineCov">          2 :                         return 0;</span>
+<span class="lineNum">     239 </span>            :                 }
+<span class="lineNum">     240 </span>            :         }
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         return 1;</span>
+<a name="242"><span class="lineNum">     242 </span>            : }</a>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">          9 : static void update_slotno_to_store(uint8_t *serialNumber, uint8_t slot_no)</span>
+<span class="lineNum">     245 </span>            : {
+<span class="lineNum">     246 </span>            :         uint8_t i;
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">         48 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     249 </span><span class="lineCov">         39 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     250 </span><span class="lineCov">          9 :                         key_store[i].slot_no = slot_no;</span>
+<span class="lineNum">     251 </span>            :                 }
+<span class="lineNum">     252 </span>            :         }
+<a name="253"><span class="lineNum">     253 </span><span class="lineCov">          9 : }</span></a>
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span><span class="lineCov">          7 : uint8_t get_keypair_from_store(uint8_t *serialNumber, EC_KEY **eckey, uint8_t **pubkey, uint8_t *subject)</span>
+<span class="lineNum">     256 </span>            : {
+<span class="lineNum">     257 </span>            :         uint8_t i;
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineCov">         10 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     260 </span><span class="lineCov">         10 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     261 </span><span class="lineCov">          7 :                         *eckey = key_store[i].eckey;</span>
+<span class="lineNum">     262 </span><span class="lineCov">          7 :                         *pubkey = key_store[i].pubkey;</span>
+<span class="lineNum">     263 </span><span class="lineCov">          7 :                         memcpy(subject, key_store[i].subject, CERT_ELEMENT_MAXLEN_SUBJECT);</span>
+<span class="lineNum">     264 </span><span class="lineCov">          7 :                         return 0;</span>
+<span class="lineNum">     265 </span>            :                 }
+<span class="lineNum">     266 </span>            :         }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :         return 1;</span>
+<a name="269"><span class="lineNum">     269 </span>            : }</a>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">          4 : uint8_t get_issuer_from_store(uint8_t *serialNumber, uint8_t *issuer)</span>
+<span class="lineNum">     272 </span>            : {
+<span class="lineNum">     273 </span>            :         uint8_t i;
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span><span class="lineCov">         16 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     276 </span><span class="lineCov">         15 :                 if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     277 </span><span class="lineCov">          3 :                         memcpy(issuer, key_store[i].issuer, CERT_ELEMENT_MAXLEN_ISSUER);</span>
+<span class="lineNum">     278 </span><span class="lineCov">          3 :                         return 0;</span>
+<span class="lineNum">     279 </span>            :                 }
+<span class="lineNum">     280 </span>            :         }
+<span class="lineNum">     281 </span><span class="lineCov">          1 :         return 1;</span>
+<span class="lineNum">     282 </span>            : }
+<span class="lineNum">     283 </span>            : 
+<a name="284"><span class="lineNum">     284 </span>            : </a>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineCov">          8 : uint8_t sign_cert(CertBuffer *pcert, EC_KEY *eckey, uint8_t *pubkey,uint8_t *issuer, uint8_t *authkeyid)</span>
+<span class="lineNum">     287 </span>            : {
+<span class="lineNum">     288 </span>            :         //do hash and sign
+<span class="lineNum">     289 </span><span class="lineCov">          8 :         ECDSA_SIG *signature = NULL;</span>
+<span class="lineNum">     290 </span>            :         uint8_t hash[SHA256_DIGEST_LENGTH];
+<span class="lineNum">     291 </span>            :         SHA256_CTX sha256;
+<span class="lineNum">     292 </span><span class="lineCov">          8 :         uint8_t siglen=0;</span>
+<span class="lineNum">     293 </span>            :         unsigned char temp[72];
+<span class="lineNum">     294 </span><span class="lineCov">          8 :         unsigned char* psig = NULL;</span>
+<span class="lineNum">     295 </span>            :         int i;
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            :         //update issuer  &amp; AuthKeyID before hash
+<span class="lineNum">     298 </span><span class="lineCov">          8 :         memcpy(pcert-&gt;buffer+pcert-&gt;dc.issuer.idx, issuer, CERT_ELEMENT_MAXLEN_SUBJECT);</span>
+<span class="lineNum">     299 </span><span class="lineCov">          8 :         memcpy(pcert-&gt;buffer+pcert-&gt;dc.AuthKeyID.idx, authkeyid, CERT_ELEMENT_MAXLEN_AUTHKEYID);</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineCov">          8 :         SHA256_Init(&amp;sha256);</span>
+<span class="lineNum">     302 </span><span class="lineCov">          8 :         SHA256_Update(&amp;sha256, pcert-&gt;buffer + pcert-&gt;dc.tbsCertificate.idx, pcert-&gt;dc.tbsCertificate.len);</span>
+<span class="lineNum">     303 </span><span class="lineCov">          8 :         SHA256_Final(hash, &amp;sha256);</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            :         //printf(&quot;sign dbg==&gt; hash:&quot;);
+<span class="lineNum">     306 </span>            :         //hexdump(hash, SHA256_DIGEST_LENGTH);
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span><span class="lineCov">          8 :         signature = ECDSA_do_sign(hash, SHA256_DIGEST_LENGTH, eckey);</span>
+<span class="lineNum">     309 </span><span class="lineCov">          8 :         if (signature == NULL)</span>
+<span class="lineNum">     310 </span>            :         {
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :                 printf(&quot;Error ECDSA_do_sign()\n&quot;);</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     313 </span>            :         }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span><span class="lineCov">         44 :         for (i = 0; i &lt; key_store_last; i++){</span>
+<span class="lineNum">     316 </span><span class="lineCov">         36 :                 if (!memcmp(pcert-&gt;buffer + pcert-&gt;dc.serialNumber.idx, key_store[i].serialNumber, CERT_ELEMENT_MAXLEN_SERIALNO)) {</span>
+<span class="lineNum">     317 </span><span class="lineCov">          8 :                         memcpy(key_store[i].issuer, issuer, CERT_ELEMENT_MAXLEN_SUBJECT); </span>
+<span class="lineNum">     318 </span>            :                 }
+<span class="lineNum">     319 </span>            :         }
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">          8 :         memset(temp, 0, sizeof(temp));</span>
+<span class="lineNum">     322 </span><span class="lineCov">          8 :         psig = temp;</span>
+<span class="lineNum">     323 </span><span class="lineCov">          8 :         siglen = i2d_ECDSA_SIG(signature,&amp;psig);</span>
+<span class="lineNum">     324 </span><span class="lineCov">         16 :         if (siglen &gt; 0 &amp;&amp; siglen &lt;= CERT_ELEMENT_MAXLEN_SIGNATURE ) {</span>
+<span class="lineNum">     325 </span><span class="lineCov">          8 :                 memcpy(pcert-&gt;buffer + pcert-&gt;dc.signatureValue.idx, temp, siglen);</span>
+<span class="lineNum">     326 </span><span class="lineCov">          8 :                 pcert-&gt;dc.signatureValue.len = siglen;</span>
+<span class="lineNum">     327 </span>            :                 //printf(&quot;sign dbg==&gt; siglen %d, signature:&quot;,siglen);
+<span class="lineNum">     328 </span>            :                 //hexdump(pcert-&gt;buffer + pcert-&gt;dc.signatureValue.idx, siglen);
+<span class="lineNum">     329 </span>            :         }
+<span class="lineNum">     330 </span>            :         else{
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :                 printf(&quot;Error coverting to DER form %d.\n&quot;,siglen);</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :                 return 1;</span>
+<span class="lineNum">     333 </span>            :         }
+<span class="lineNum">     334 </span><span class="lineCov">          8 :         return 0;</span>
+<span class="lineNum">     335 </span>            : }
+<a name="336"><span class="lineNum">     336 </span>            : #endif</a>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineCov">        188 : uint8_t get_token_id(char *string)</span>
+<span class="lineNum">     339 </span>            : {
+<span class="lineNum">     340 </span><span class="lineCov">        188 :         if (!strcasecmp(string, &quot;expect&quot;)) return TOKEN_EXPECT;</span>
+<span class="lineNum">     341 </span><span class="lineCov">        155 :         if (!strcasecmp(string, &quot;pass&quot;)) return TOKEN_PASS;</span>
+<span class="lineNum">     342 </span><span class="lineCov">        113 :         if (!strcasecmp(string, &quot;fail&quot;)) return TOKEN_FAIL;</span>
+<span class="lineNum">     343 </span><span class="lineCov">        101 :         if (!strcasecmp(string, &quot;editbuf&quot;)) return TOKEN_EDITBUF;</span>
+<span class="lineNum">     344 </span><span class="lineCov">         79 :         if (!strcasecmp(string, &quot;insert&quot;)) return TOKEN_INSERT;</span>
+<span class="lineNum">     345 </span><span class="lineCov">         70 :         if (!strcasecmp(string, &quot;delete&quot;)) return TOKEN_DELETE;</span>
+<span class="lineNum">     346 </span><span class="lineCov">         65 :         if (!strcasecmp(string, &quot;find&quot;)) return TOKEN_FIND;</span>
+<span class="lineNum">     347 </span><span class="lineCov">         48 :         if (!strcasecmp(string, &quot;byid&quot;)) return TOKEN_BYID;</span>
+<span class="lineNum">     348 </span><span class="lineCov">         46 :         if (!strcasecmp(string, &quot;byslot&quot;)) return TOKEN_BYSLOT;</span>
+<span class="lineNum">     349 </span><span class="lineCov">         44 :         if (!strcasecmp(string, &quot;bcbymac&quot;)) return TOKEN_BCBYMAC;</span>
+<span class="lineNum">     350 </span><span class="lineCov">         42 :         if (!strcasecmp(string, &quot;dlbymac&quot;)) return TOKEN_DLBYMAC;</span>
+<span class="lineNum">     351 </span><span class="lineCov">         40 :         if (!strcasecmp(string, &quot;issuer&quot;)) return TOKEN_ISSUER;</span>
+<span class="lineNum">     352 </span><span class="lineCov">         39 :         if (!strcasecmp(string, &quot;create&quot;)) return TOKEN_CREATE;</span>
+<span class="lineNum">     353 </span><span class="lineCov">         31 :         if (!strcasecmp(string, &quot;sign&quot;)) return TOKEN_SIGN;</span>
+<span class="lineNum">     354 </span><span class="lineCov">         23 :         if (!strcasecmp(string, &quot;using&quot;)) return TOKEN_USING;</span>
+<span class="lineNum">     355 </span><span class="lineCov">         21 :         if (!strcasecmp(string, &quot;self&quot;)) return TOKEN_SELF;</span>
+<span class="lineNum">     356 </span><span class="lineCov">         20 :         if (!strcasecmp(string, &quot;check_sanity&quot;)) return TOKEN_CHECK_SANITY;</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">         18 :         if (!strcasecmp(string, &quot;oper&quot;)) return TOKEN_OPER;</span>
+<span class="lineNum">     359 </span><span class="lineCov">         15 :         if (!strcasecmp(string, &quot;bysubj&quot;)) return TOKEN_BYSUBJ;</span>
+<span class="lineNum">     360 </span><span class="lineCov">         12 :         if (!strcasecmp(string, &quot;subject&quot;)) return TOKEN_SUBJECT;</span>
+<span class="lineNum">     361 </span><span class="lineCov">         12 :         if (!strcasecmp(string, &quot;skid&quot;)) return TOKEN_SKID;</span>
+<span class="lineNum">     362 </span><span class="lineCov">         12 :         if (!strcasecmp(string, &quot;serial&quot;)) return TOKEN_SKID;</span>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">         12 :         if (!strcasecmp(string, &quot;print_index&quot;)) return TOKEN_PRINT_INDEX;</span>
+<span class="lineNum">     365 </span><span class="lineCov">          8 :         if (!strcasecmp(string, &quot;print_cache&quot;)) return TOKEN_PRINT_CACHE;</span>
+<span class="lineNum">     366 </span><span class="lineCov">          6 :         if (!strcasecmp(string, &quot;print_cert&quot;)) return TOKEN_PRINT_CERT;</span>
+<span class="lineNum">     367 </span><span class="lineCov">          1 :         if (!strcasecmp(string, &quot;print&quot;)) return TOKEN_PRINT_MSG;</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         if (!strcasecmp(string, &quot;prompt&quot;)) return TOKEN_PROMPT;</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         if (!strcasecmp(string, &quot;exit&quot;)) return TOKEN_EXIT;</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     373 </span>            : }
+<a name="374"><span class="lineNum">     374 </span>            : </a>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineCov">         82 : void strip_last_newline(char *string)</span>
+<span class="lineNum">     377 </span>            : {
+<span class="lineNum">     378 </span><span class="lineCov">         82 :         if (!string) return;</span>
+<span class="lineNum">     379 </span><span class="lineCov">         82 :         uint32_t j = strlen(string);</span>
+<span class="lineNum">     380 </span><span class="lineCov">        564 :         for (; j; j--)</span>
+<span class="lineNum">     381 </span><span class="lineCov">        482 :                 if (string[j] == '\n') string[j] = '\0';</span>
+<a name="382"><span class="lineNum">     382 </span>            : }</a>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">         83 : char *get_first_token(char *string)</span>
+<span class="lineNum">     385 </span>            : {
+<span class="lineNum">     386 </span>            :         char *retstr;
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">         83 :         memcpy(g_strtok_current, string, 512);</span>
+<span class="lineNum">     389 </span><span class="lineCov">         83 :         g_strtok_strptr = string;</span>
+<span class="lineNum">     390 </span><span class="lineCov">         83 :         retstr = strtok((char *)g_strtok_current,&quot; ;&quot;);</span>
+<span class="lineNum">     391 </span><span class="lineCov">         83 :         if (retstr &amp;&amp; strstr(retstr,&quot;\n&quot;))</span>
+<span class="lineNum">     392 </span><span class="lineCov">         24 :                 strip_last_newline(retstr);</span>
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span><span class="lineCov">         83 :         return retstr;</span>
+<a name="395"><span class="lineNum">     395 </span>            : }</a>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span><span class="lineCov">        264 : char *get_next_token(char *string)</span>
+<span class="lineNum">     398 </span>            : {
+<span class="lineNum">     399 </span>            :         char *retstr;
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">        264 :         if (g_strtok_strptr != string) {</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :                 printf(&quot;Incorrect current string.\n&quot;);</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :                 return NULL;</span>
+<span class="lineNum">     404 </span>            :         }
+<span class="lineNum">     405 </span><span class="lineCov">        264 :         retstr = strtok(NULL,&quot; &quot;);</span>
+<span class="lineNum">     406 </span><span class="lineCov">        264 :         if (retstr &amp;&amp; strstr(retstr,&quot;\n&quot;))</span>
+<span class="lineNum">     407 </span><span class="lineCov">         58 :                 strip_last_newline(retstr);</span>
+<span class="lineNum">     408 </span>            : 
+<a name="409"><span class="lineNum">     409 </span><span class="lineCov">        264 :         return retstr;</span></a>
+<span class="lineNum">     410 </span>            : }
+<span class="lineNum">     411 </span><span class="lineCov">        164 : void hexdump(uint8_t *p, uint32_t size)</span>
+<span class="lineNum">     412 </span>            : {
+<span class="lineNum">     413 </span><span class="lineCov">        164 :         while (size--) printf(&quot;%02x&quot;,*p++);</span>
+<span class="lineNum">     414 </span><span class="lineCov">        164 :         printf(&quot;\n&quot;);</span>
+<a name="415"><span class="lineNum">     415 </span><span class="lineCov">        164 : }</span></a>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 : void sscan_octets(void *string, void *dest, uint8_t no_of_octets)</span>
+<span class="lineNum">     418 </span>            : {
+<span class="lineNum">     419 </span>            :         uint8_t i, *cursor;
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :         for (i=0; i &lt; no_of_octets; i++) {</span>
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :                 cursor = ((uint8_t *)(dest)) + i;</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :                 sscanf((char *)string + i*2,&quot;%2hhx&quot;,cursor);</span>
+<span class="lineNum">     424 </span>            :         }
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span>            : #ifdef PRINT_CERT_ELEMENTS
+<span class="lineNum">     428 </span>            : static inline void print_cert_element(int idx,int len)
+<span class="lineNum">     429 </span>            : {
+<span class="lineNum">     430 </span>            :         printf(&quot;offset=%03d  len=%03d\n&quot;,idx,len);
+<span class="lineNum">     431 </span>            : }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            : static void print_cert_elements(CertBuffer *cb)
+<span class="lineNum">     434 </span>            : {
+<span class="lineNum">     435 </span>            :         printf(&quot;\nCertBuffer@%p\n&quot;,cb);
+<span class="lineNum">     436 </span>            :         printf(&quot;CertBuff-&gt;Certificate:        &quot;);print_cert_element(cb-&gt;dc.Certificate.idx,cb-&gt;dc.Certificate.len);
+<span class="lineNum">     437 </span>            :         printf(&quot;CertBuff-&gt;tbsCertificate:     &quot;);print_cert_element(cb-&gt;dc.tbsCertificate.idx,cb-&gt;dc.tbsCertificate.len);
+<span class="lineNum">     438 </span>            :         printf(&quot;CertBuff-&gt;signatureAlgorithm: &quot;);print_cert_element(cb-&gt;dc.signatureAlgorithm.idx,cb-&gt;dc.signatureAlgorithm.len);
+<span class="lineNum">     439 </span>            :         printf(&quot;CertBuff-&gt;signatureValue:     &quot;);print_cert_element(cb-&gt;dc.signatureValue.idx,cb-&gt;dc.signatureValue.len);
+<span class="lineNum">     440 </span>            :         printf(&quot;CertBuff-&gt;serialNumber:       &quot;);print_cert_element(cb-&gt;dc.serialNumber.idx,cb-&gt;dc.serialNumber.len);
+<span class="lineNum">     441 </span>            :         printf(&quot;CertBuff-&gt;signature(signAlgoID): &quot;);print_cert_element(cb-&gt;dc.signature.idx,cb-&gt;dc.signature.len);
+<span class="lineNum">     442 </span>            :         printf(&quot;CertBuff-&gt;issuer:             &quot;);print_cert_element(cb-&gt;dc.issuer.idx,cb-&gt;dc.issuer.len);
+<span class="lineNum">     443 </span>            :         printf(&quot;CertBuff-&gt;subject:            &quot;);print_cert_element(cb-&gt;dc.issuer.idx,cb-&gt;dc.issuer.len);
+<span class="lineNum">     444 </span>            :         printf(&quot;CertBuff-&gt;algorithm(PubKeyAlgo): &quot;);print_cert_element(cb-&gt;dc.algorithm.idx,cb-&gt;dc.algorithm.len);
+<span class="lineNum">     445 </span>            :         printf(&quot;CertBuff-&gt;subjectPublicKey:   &quot;);print_cert_element(cb-&gt;dc.subjectPublicKey.idx,cb-&gt;dc.subjectPublicKey.len);
+<span class="lineNum">     446 </span>            :         printf(&quot;CertBuff-&gt;extensions:         &quot;);print_cert_element(cb-&gt;dc.extensions.idx,cb-&gt;dc.extensions.len);
+<span class="lineNum">     447 </span>            :         printf(&quot;CertBuff-&gt;AltNames:           &quot;);print_cert_element(cb-&gt;dc.AltNames.idx,cb-&gt;dc.AltNames.len);
+<span class="lineNum">     448 </span>            :         printf(&quot;CertBuff-&gt;AuthKeyID:          &quot;);print_cert_element(cb-&gt;dc.AuthKeyID.idx,cb-&gt;dc.AuthKeyID.len);
+<span class="lineNum">     449 </span>            :         printf(&quot;CertBuff-&gt;SubjKeyID:          &quot;);print_cert_element(cb-&gt;dc.SubjKeyID.idx,cb-&gt;dc.SubjKeyID.len);
+<span class="lineNum">     450 </span>            :         printf(&quot;CertBuff-&gt;Policies:           &quot;);print_cert_element(cb-&gt;dc.Policies.idx,cb-&gt;dc.Policies.len);
+<span class="lineNum">     451 </span>            :         printf(&quot;CertBuff-&gt;Role:               &quot;);print_cert_element(cb-&gt;dc.Role.idx,cb-&gt;dc.Role.len);
+<span class="lineNum">     452 </span>            :         printf(&quot;CertBuff-&gt;MultiRole:          &quot;);print_cert_element(cb-&gt;dc.MultiRole.idx,cb-&gt;dc.MultiRole.len);
+<span class="lineNum">     453 </span>            : }
+<a name="454"><span class="lineNum">     454 </span>            : #endif</a>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          6 : char *get_algoid_string(uint8_t *signalgo, uint16_t len)</span>
+<span class="lineNum">     457 </span>            : {
+<span class="lineNum">     458 </span><span class="lineCov">          6 :         uint8_t oid_ecdsa_sha1[] = {42, 134, 72, 206, 61, 4, 1 };</span>
+<span class="lineNum">     459 </span><span class="lineCov">          6 :         if (!memcmp(signalgo+4,oid_ecdsa_sha1, 7))</span>
+<span class="lineNum">     460 </span><span class="lineCov">          6 :                 return &quot;ecdsa-with-sha1&quot;;</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         return &quot;unknown-algo&quot;;</span>
+<a name="462"><span class="lineNum">     462 </span>            : }</a>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineCov">          6 : void print_pcert(CertBuffer *cb)</span>
+<span class="lineNum">     465 </span>            : {
+<span class="lineNum">     466 </span><span class="lineCov">          6 :         printf(&quot;\nCertBuffer@%p\n&quot;,cb);</span>
+<span class="lineNum">     467 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;certVersion: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;dc.certVersion), 1);</span>
+<span class="lineNum">     468 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;signAlgoID: %s\n&quot;, get_algoid_string(cb-&gt;buffer + cb-&gt;dc.signatureAlgorithm.idx, cb-&gt;dc.signatureAlgorithm.len));</span>
+<span class="lineNum">     469 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;serialNumber: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.serialNumber.idx]), cb-&gt;dc.serialNumber.len);</span>
+<span class="lineNum">     470 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;subject: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.subject.idx]), cb-&gt;dc.subject.len);</span>
+<span class="lineNum">     471 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;issuer: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.issuer.idx]), cb-&gt;dc.issuer.len);</span>
+<span class="lineNum">     472 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;algorithm: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.algorithm.idx]), cb-&gt;dc.algorithm.len);</span>
+<span class="lineNum">     473 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;subjectPublicKey: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.subjectPublicKey.idx]), cb-&gt;dc.subjectPublicKey.len);</span>
+<span class="lineNum">     474 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;AltNames: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.AltNames.idx]), cb-&gt;dc.AltNames.len);</span>
+<span class="lineNum">     475 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;AuthKeyID: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.AuthKeyID.idx]), cb-&gt;dc.AuthKeyID.len);</span>
+<span class="lineNum">     476 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;SubjKeyID: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.SubjKeyID.idx]), cb-&gt;dc.SubjKeyID.len);</span>
+<span class="lineNum">     477 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;Policies: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.Policies.idx]), cb-&gt;dc.Policies.len);</span>
+<span class="lineNum">     478 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;Role: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.Role.idx]), cb-&gt;dc.Role.len);</span>
+<span class="lineNum">     479 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;MultiRole: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.MultiRole.idx]), cb-&gt;dc.MultiRole.len);</span>
+<span class="lineNum">     480 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;valid_notBefore: &quot;);printf(&quot;%s&quot;,ctime(&amp;(cb-&gt;dc.notBefore)));</span>
+<span class="lineNum">     481 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;valid_notAfter : &quot;);printf(&quot;%s&quot;,ctime(&amp;(cb-&gt;dc.notAfter)));</span>
+<span class="lineNum">     482 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;signatureOID : &quot;);printf(&quot;%d\n&quot;,cb-&gt;dc.signatureOID);</span>
+<span class="lineNum">     483 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;signature(Alg_id): &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.signature.idx]), cb-&gt;dc.signature.len);</span>
+<span class="lineNum">     484 </span><span class="lineCov">          6 :         printf(&quot;CertBuff-&gt;signatureValue: &quot;);hexdump((uint8_t *)&amp;(cb-&gt;buffer[cb-&gt;dc.signatureValue.idx]), cb-&gt;dc.signatureValue.len);</span>
+<span class="lineNum">     485 </span><span class="lineCov">          6 :         printf(&quot;\n&quot;);</span>
+<span class="lineNum">     486 </span><span class="lineCov">          6 : }</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span>            : const char help_string[] = \
+<span class="lineNum">     489 </span>            :                            &quot;mcreg [&lt;filename&gt;|help|prompt]\n&quot;
+<span class="lineNum">     490 </span>            :                            &quot;&lt;filename&gt; - name of input command file\n&quot;
+<span class="lineNum">     491 </span>            :                            &quot;help - this screen\n&quot;
+<span class="lineNum">     492 </span>            :                            &quot;prompt - no input command file. start at command prompt - default option\n&quot;
+<span class="lineNum">     493 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     494 </span>            :                            &quot;General instructions for input command file:\n&quot;
+<span class="lineNum">     495 </span>            :                            &quot;1. Sequence of arguments to command MUST be same as in syntax below.\n&quot;
+<span class="lineNum">     496 </span>            :                            &quot;2. extra whitespace may cause undefined behavior\n&quot;
+<span class="lineNum">     497 </span>            :                            &quot;3. line starting with '#' IN FIRST COLUMN only is comment.\n&quot;
+<span class="lineNum">     498 </span>            :                            &quot;4. blank lines will be ignored by parser.\n&quot;
+<span class="lineNum">     499 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     500 </span>            :                            &quot;GENERAL commands\n&quot;
+<span class="lineNum">     501 </span>            :                            &quot;expect pass|fail &lt;INSERTcommand|FINDcommand|DELETEcommand|SIGNATUREcommand&gt;\n&quot;
+<span class="lineNum">     502 </span>            :                            &quot;print_index\n&quot;
+<span class="lineNum">     503 </span>            :                            &quot;print_cache\n&quot;
+<span class="lineNum">     504 </span>            :                            &quot;print_cert [index]\n&quot;
+<span class="lineNum">     505 </span>            :                            &quot;print &lt;string&gt;\n&quot;
+<span class="lineNum">     506 </span>            :                            &quot;prompt\n&quot;
+<span class="lineNum">     507 </span>            :                            &quot;exit\n&quot;
+<span class="lineNum">     508 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     509 </span>            :                            &quot;INSERT commands\n&quot;
+<span class="lineNum">     510 </span>            :                            &quot;insert\n&quot;
+<span class="lineNum">     511 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     512 </span>            :                            &quot;EDITBUF commands\n&quot;
+<span class="lineNum">     513 </span>            :                            &quot;editbuf serial &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     514 </span>            :                            &quot;editbuf subject &lt;102-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     515 </span>            :                            &quot;editbuf issuer &lt;102-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     516 </span>            :                            &quot;editbuf altnames &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     517 </span>            :                            &quot;editbuf policies &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     518 </span>            :                            &quot;editbuf authkeyid &lt;16-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     519 </span>            :                            &quot;editbuf subjkeyid &lt;16-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     520 </span>            :                            &quot;editbuf pubkey &lt;65-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     521 </span>            :                            &quot;editbuf notafter &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     522 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     523 </span>            :                            &quot;FIND commands\n&quot;
+<span class="lineNum">     524 </span>            :                            &quot;find\n&quot;
+<span class="lineNum">     525 </span>            :                            &quot;find byid serial &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     526 </span>            :                            &quot;find byslot &lt;slot_no&gt;\n&quot;
+<span class="lineNum">     527 </span>            :                            &quot;find bysubj subject &lt;102-octets&gt;|*&lt;octet&gt; skid &lt;16-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     528 </span>            :                            &quot;find oper &lt;slot_no&gt;\n&quot;
+<span class="lineNum">     529 </span>            :                            &quot;find bcbymac &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     530 </span>            :                            &quot;find dlbymac &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     531 </span>            :                            &quot;find issuer serial &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     532 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     533 </span>            :                            &quot;DELETE commands\n&quot;
+<span class="lineNum">     534 </span>            :                            &quot;delete byslot &lt;slot_no&gt;\n&quot;
+<span class="lineNum">     535 </span>            :                            &quot;delete byid serial &lt;8-octets&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     536 </span>            :                            &quot;\n&quot;
+<span class="lineNum">     537 </span>            :                            &quot;SIGNATURE commands\n&quot;
+<span class="lineNum">     538 </span>            :                            &quot;create\n&quot;
+<span class="lineNum">     539 </span>            :                            &quot;\tcreate key pair for ram_cert, store in keypair_store and set pubkey of ram_cert.\n&quot;
+<span class="lineNum">     540 </span>            :                            &quot;sign [self | using serial &lt;8-octets&gt;|*&lt;octet&gt;]\n&quot;
+<span class="lineNum">     541 </span>            :                            &quot;\tsign\n&quot;
+<span class="lineNum">     542 </span>            :                            &quot;\t\tsign using keypair of root certificate\n&quot;
+<span class="lineNum">     543 </span>            :                            &quot;\tsign using serial &lt;8-ocetes&gt;|*&lt;octet&gt;\n&quot;
+<span class="lineNum">     544 </span>            :                            &quot;\t\tsign using keypair of specified certificate\n&quot;
+<span class="lineNum">     545 </span>            :                            &quot;\tsign self\n&quot;
+<span class="lineNum">     546 </span>            :                            &quot;\t\tsign using keypair of ram_cert.\n&quot;
+<a name="547"><span class="lineNum">     547 </span>            :                            ;</a>
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 : void help()</span>
+<span class="lineNum">     550 </span>            : {
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :         printf(&quot;%s\n&quot;,help_string);</span>
+<a name="552"><span class="lineNum">     552 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span><span class="lineCov">         36 : void parse_hexstring(void *string, void *ptr, uint8_t len)</span>
+<span class="lineNum">     555 </span>            : {
+<span class="lineNum">     556 </span>            :         uint8_t tval;
+<span class="lineNum">     557 </span><span class="lineCov">         36 :         char *token = (char *)string;</span>
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span><span class="lineCov">         36 :         if (token[0] == '*') {</span>
+<span class="lineNum">     560 </span><span class="lineCov">         36 :                 sscanf(token+1,&quot;%2hhx&quot;,&amp;tval);</span>
+<span class="lineNum">     561 </span><span class="lineCov">         36 :                 memset(ptr,tval,len);</span>
+<span class="lineNum">     562 </span>            :         }
+<span class="lineNum">     563 </span>            :         else
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :                 sscan_octets(token, ptr, len);</span>
+<span class="lineNum">     565 </span><span class="lineCov">         36 : }</span>
+<a name="566"><span class="lineNum">     566 </span>            : </a>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">         71 : void report_result(char *result, int8_t *line, uint32_t lno)</span>
+<span class="lineNum">     569 </span>            : {
+<span class="lineNum">     570 </span><span class="lineCov">         71 :         if (line){</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :                 strip_last_newline((char *)line);</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :                 printf(&quot;!Result %s. [Line %d: %s]\n&quot;,result,lno,line);</span>
+<span class="lineNum">     573 </span>            :         }
+<span class="lineNum">     574 </span>            :         else
+<span class="lineNum">     575 </span><span class="lineCov">         71 :                 printf(&quot;%s.\n&quot;,result);</span>
+<a name="576"><span class="lineNum">     576 </span><span class="lineCov">         71 : }</span></a>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">         49 : void check_and_report_result(error_t libret, uint8_t expected_result, int8_t *line, uint32_t lc)</span>
+<span class="lineNum">     579 </span>            : {
+<span class="lineNum">     580 </span>            :         char fail_string[10];
+<span class="lineNum">     581 </span><span class="lineCov">         98 :         if (    (libret == MC_CACHE_MATCH &amp;&amp; expected_result == RESULT_PASS) ||</span>
+<span class="lineNum">     582 </span>            :                         (libret == ERR_MC_CACHE_FIND_NO_MATCH &amp;&amp; expected_result == RESULT_FAIL) ||
+<span class="lineNum">     583 </span>            :                         (libret == ERR_OK &amp;&amp; expected_result == RESULT_PASS) ||
+<span class="lineNum">     584 </span>            :                         (libret != ERR_OK &amp;&amp; expected_result == RESULT_FAIL) )
+<span class="lineNum">     585 </span><span class="lineCov">         49 :                 report_result(&quot;OK&quot;,NULL,lc);</span>
+<span class="lineNum">     586 </span>            :         else {
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :                 sprintf(fail_string,&quot;FAIL (%d)&quot;,libret);</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                 report_result(fail_string,line,lc);</span>
+<span class="lineNum">     589 </span>            :         }
+<span class="lineNum">     590 </span><span class="lineCov">         49 : }</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            : extern uint8_t used_list_head;
+<span class="lineNum">     593 </span>            : extern uint8_t free_list_head;
+<span class="lineNum">     594 </span>            : extern struct _mc_list used_list[TOTAL_MCERT_SLOTS];
+<a name="595"><span class="lineNum">     595 </span>            : extern struct _mc_list free_list[TOTAL_MCERT_SLOTS];</a>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">          4 : void print_index()</span>
+<span class="lineNum">     598 </span>            : {
+<span class="lineNum">     599 </span>            :         struct _mc_list item;
+<span class="lineNum">     600 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            :         //traverse used_list;
+<span class="lineNum">     603 </span><span class="lineCov">          4 :         printf(&quot;Used list:\n&quot;);</span>
+<span class="lineNum">     604 </span><span class="lineCov">          4 :         if (used_list_head == 0xFF) {</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :                 printf(&quot;Empty.\n&quot;);</span>
+<span class="lineNum">     606 </span>            :         }
+<span class="lineNum">     607 </span>            :         else {
+<span class="lineNum">     608 </span><span class="lineCov">          4 :                 item = used_list[used_list_head];</span>
+<span class="lineNum">     609 </span><span class="lineCov">         21 :                 while (item.next != 0xFF) {</span>
+<span class="lineNum">     610 </span><span class="lineCov">         13 :                         get_fullcert_from_cert_cache(&amp;cert_local, item.cache_slot);</span>
+<span class="lineNum">     611 </span><span class="lineCov">         13 :                         printf(&quot;[%03u(%08lx) %03u] -&gt; &quot;, item.cache_slot, *((long unsigned int *)(cert_local.buffer+cert_local.dc.serialNumber.idx)), item.next);</span>
+<span class="lineNum">     612 </span><span class="lineCov">         13 :                         item = used_list[item.next];</span>
+<span class="lineNum">     613 </span>            :                 }
+<span class="lineNum">     614 </span><span class="lineCov">          4 :                 get_fullcert_from_cert_cache(&amp;cert_local, item.cache_slot);</span>
+<span class="lineNum">     615 </span><span class="lineCov">          4 :                 printf(&quot;[%03u(%08lx) %03u]\n&quot;, item.cache_slot, *((long unsigned int *)(cert_local.buffer+cert_local.dc.serialNumber.idx)), item.next);</span>
+<span class="lineNum">     616 </span>            :         }
+<span class="lineNum">     617 </span>            :         //traverse free list;
+<span class="lineNum">     618 </span><span class="lineCov">          4 :         printf(&quot;Free list:\n&quot;);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          4 :         if (free_list_head == 0xFF) {</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :                 printf(&quot;Empty.\n&quot;);</span>
+<span class="lineNum">     621 </span>            :         }
+<span class="lineNum">     622 </span>            :         else {
+<span class="lineNum">     623 </span><span class="lineCov">          4 :                 item = free_list[free_list_head];</span>
+<span class="lineNum">     624 </span><span class="lineCov">        627 :                 while (item.next != 0xFF) {</span>
+<span class="lineNum">     625 </span>            :                         //printf(&quot;[%03u, %03u] -&gt; &quot;, item.cache_slot, item.next);
+<span class="lineNum">     626 </span><span class="lineCov">        619 :                         printf(&quot;[%03u]-&gt;&quot;, item.cache_slot);</span>
+<span class="lineNum">     627 </span><span class="lineCov">        619 :                         item = free_list[item.next];</span>
+<span class="lineNum">     628 </span>            :                 }
+<span class="lineNum">     629 </span>            :                 //printf(&quot;[%03u, %03u]\n&quot;, item.cache_slot, item.next);
+<span class="lineNum">     630 </span><span class="lineCov">          4 :                 printf(&quot;[%03u]\n&quot;, item.cache_slot);</span>
+<span class="lineNum">     631 </span>            :         }
+<span class="lineNum">     632 </span>            : 
+<a name="633"><span class="lineNum">     633 </span><span class="lineCov">          4 : }</span></a>
+<span class="lineNum">     634 </span>            : 
+<span class="lineNum">     635 </span><span class="lineCov">          1 : error_t parse_der_cert(CertBuffer *ram_cert)</span>
+<span class="lineNum">     636 </span>            : {
+<span class="lineNum">     637 </span>            :         error_t ret;
+<span class="lineNum">     638 </span><span class="lineCov">          1 :         memcpy(ram_cert-&gt;buffer, der_cert, sizeof(der_cert));</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :         InitDecodedCert(&amp;ram_cert-&gt;dc, ram_cert-&gt;buffer, sizeof(der_cert), NULL); </span>
+<span class="lineNum">     640 </span><span class="lineCov">          1 :         ret = ParseCert(&amp;ram_cert-&gt;dc,0);</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span><span class="lineCov">          1 :         if (ret != ERR_OK ) {</span>
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :                 printf(&quot;Error parsing DER form of certificate.\n&quot;);</span>
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :                 return ret;</span>
+<span class="lineNum">     645 </span>            :         }
+<span class="lineNum">     646 </span><span class="lineCov">          1 :         return ERR_OK;          </span>
+<span class="lineNum">     647 </span>            : }
+<span class="lineNum">     648 </span>            : 
+<a name="649"><span class="lineNum">     649 </span>            : CertBuffer find_result_pcert, find_result_issuer; </a>
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineCov">          1 : int main(int argc, char *argv[])</span>
+<span class="lineNum">     652 </span>            : {
+<span class="lineNum">     653 </span><span class="lineCov">          1 :         FILE *fp = NULL;</span>
+<span class="lineNum">     654 </span><span class="lineCov">          1 :         uint32_t tc = 0, lc = 0;</span>
+<span class="lineNum">     655 </span>            :         uint8_t expected_result;
+<span class="lineNum">     656 </span>            :         error_t libret;
+<span class="lineNum">     657 </span><span class="lineCov">          1 :         uint8_t done = 0, prompt = 0;</span>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineCov">          1 :         libret = mc_cache_init();</span>
+<span class="lineNum">     660 </span><span class="lineCov">          1 :         if (libret != ERR_OK) {</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :                 printf(&quot;Error initializing cert Cache. error %d\n&quot;, libret);</span>
+<span class="lineNum">     662 </span>            :         }
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">          1 :         if (argv[1]) {</span>
+<span class="lineNum">     665 </span><span class="lineCov">          1 :                 if (!strcmp(argv[1],&quot;help&quot;)) {</span>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :                         help();</span>
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :                         return 0;</span>
+<span class="lineNum">     668 </span>            :                 }
+<span class="lineNum">     669 </span><span class="lineCov">          1 :                 fp = fopen(argv[1],&quot;r&quot;);</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 :                 if (fp == NULL) {</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :                         printf(&quot;Cannot open input file. %s\n&quot;, argv[1]);</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :                         return 1;</span>
+<span class="lineNum">     673 </span>            :                 }
+<span class="lineNum">     674 </span>            :         }
+<span class="lineNum">     675 </span>            :         else
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :                 prompt = 1;</span>
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span><span class="lineCov">          1 :         libret = parse_der_cert(&amp;ram_cert);</span>
+<span class="lineNum">     679 </span><span class="lineCov">          1 :         if (libret != ERR_OK) {</span>
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :                 printf(&quot;Error initializing ram_cert. error %d\n&quot;,libret);</span>
+<span class="lineNum">     681 </span>            :         }
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span><span class="lineCov">         87 :         while (!done){</span>
+<span class="lineNum">     684 </span><span class="lineCov">         85 :                 if (!prompt) {</span>
+<span class="lineNum">     685 </span><span class="lineCov">         85 :                         if (!fgets((char *)line,512,fp)) {</span>
+<span class="lineNum">     686 </span><span class="lineCov">          1 :                                 done = 1;</span>
+<span class="lineNum">     687 </span><span class="lineCov">          1 :                                 continue;</span>
+<span class="lineNum">     688 </span>            :                         }
+<span class="lineNum">     689 </span>            :                 }
+<span class="lineNum">     690 </span>            :                 else {
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :                         printf(&quot;==&gt; &quot;);fflush(stdout);</span>
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :                         fgets((char *)line, 512,stdin);</span>
+<span class="lineNum">     693 </span>            :                 }
+<span class="lineNum">     694 </span><span class="lineCov">         84 :                 if (line == NULL) continue;</span>
+<span class="lineNum">     695 </span><span class="lineCov">         84 :                 lc++;</span>
+<span class="lineNum">     696 </span><span class="lineCov">         84 :                 if (line[0] == '#' || line[0] == '\n') continue;</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">         83 :                 if (!prompt) {</span>
+<span class="lineNum">     699 </span><span class="lineCov">         83 :                         if (!strstr((char *)line,&quot;print &quot;))</span>
+<span class="lineNum">     700 </span><span class="lineCov">         82 :                                 printf(&quot;==&gt; %s&quot;, line);</span>
+<span class="lineNum">     701 </span>            :                 }
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            :                 //process this line
+<span class="lineNum">     704 </span>            :                 char *token;
+<span class="lineNum">     705 </span><span class="lineCov">         83 :                 tc = 0;</span>
+<span class="lineNum">     706 </span><span class="lineCov">         83 :                 expected_result = RESULT_PASS; //default is to assume PASS</span>
+<span class="lineNum">     707 </span><span class="lineCov">         83 :                 token = get_first_token((char *)line);</span>
+<span class="lineNum">     708 </span><span class="lineCov">        282 :                 while (token){</span>
+<span class="lineNum">     709 </span><span class="lineCov">        116 :                         switch(get_token_id(token)){</span>
+<span class="lineNum">     710 </span>            :                                 case TOKEN_EXPECT:
+<span class="lineNum">     711 </span><span class="lineCov">         33 :                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     712 </span><span class="lineCov">         33 :                                         if (get_token_id(token) == TOKEN_FAIL) {</span>
+<span class="lineNum">     713 </span><span class="lineCov">         12 :                                                 expected_result = RESULT_FAIL;</span>
+<span class="lineNum">     714 </span><span class="lineCov">         12 :                                                 break;</span>
+<span class="lineNum">     715 </span>            :                                         }
+<span class="lineNum">     716 </span><span class="lineCov">         21 :                                         if (get_token_id(token) == TOKEN_PASS) {</span>
+<span class="lineNum">     717 </span><span class="lineCov">         21 :                                                 expected_result = RESULT_PASS;</span>
+<span class="lineNum">     718 </span><span class="lineCov">         21 :                                                 break;</span>
+<span class="lineNum">     719 </span>            :                                         }
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :                                         printf(&quot;Incorrect result keyword for expect command\n&quot;);</span>
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :                                         break;</span>
+<span class="lineNum">     722 </span>            :                                 case TOKEN_EDITBUF:
+<span class="lineNum">     723 </span>            :                                         //read param and value from next tokens and update cert buffer
+<span class="lineNum">     724 </span><span class="lineCov">         22 :                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;serial&quot;)){</span>
+<span class="lineNum">     727 </span><span class="lineCov">          8 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     728 </span><span class="lineCov">          8 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.serialNumber.idx, CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">     729 </span>            :                                         }
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;subject&quot;)){</span>
+<span class="lineNum">     732 </span><span class="lineCov">          5 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     733 </span><span class="lineCov">          5 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.subject.idx, CERT_ELEMENT_MAXLEN_SUBJECT);</span>
+<span class="lineNum">     734 </span>            :                                         }
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;issuer&quot;)){</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.issuer.idx, CERT_ELEMENT_MAXLEN_ISSUER);</span>
+<span class="lineNum">     739 </span>            :                                         }
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;altnames&quot;)){</span>
+<span class="lineNum">     742 </span><span class="lineCov">          2 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     743 </span><span class="lineCov">          2 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.AltNames.idx, CERT_ELEMENT_MAXLEN_ALTNAMES);</span>
+<span class="lineNum">     744 </span><span class="lineCov">          2 :                                                 ram_cert.dc.AltNames.len = CERT_ELEMENT_MAXLEN_ALTNAMES;</span>
+<span class="lineNum">     745 </span>            :                                         }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;policies&quot;)){</span>
+<span class="lineNum">     748 </span><span class="lineCov">          2 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     749 </span><span class="lineCov">          2 :                                                 memset(ram_cert.buffer + ram_cert.dc.Policies.idx,0, CERT_ELEMENT_MAXLEN_POLICIES);</span>
+<span class="lineNum">     750 </span><span class="lineCov">          2 :                                                 int len = strlen(token);</span>
+<span class="lineNum">     751 </span><span class="lineCov">          2 :                                                 if (len &gt; CERT_ELEMENT_MAXLEN_POLICIES-1) len = CERT_ELEMENT_MAXLEN_POLICIES-1;</span>
+<span class="lineNum">     752 </span><span class="lineCov">          2 :                                                 memcpy(ram_cert.buffer + ram_cert.dc.Policies.idx,token, len);</span>
+<span class="lineNum">     753 </span><span class="lineCov">          2 :                                                 ram_cert.dc.Policies.len = len;</span>
+<span class="lineNum">     754 </span>            :                                         }
+<span class="lineNum">     755 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;authkeyid&quot;)){</span>
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     757 </span><span class="lineNoCov">          0 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.AuthKeyID.idx, CERT_ELEMENT_MAXLEN_AUTHKEYID);</span>
+<span class="lineNum">     758 </span>            :                                         }
+<span class="lineNum">     759 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;subjkeyid&quot;)){</span>
+<span class="lineNum">     760 </span><span class="lineCov">          5 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     761 </span><span class="lineCov">          5 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.SubjKeyID.idx, CERT_ELEMENT_MAXLEN_SUBJKEYID);</span>
+<span class="lineNum">     762 </span>            :                                         }
+<span class="lineNum">     763 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;pubkey&quot;)){</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :                                                 parse_hexstring(token, ram_cert.buffer + ram_cert.dc.subjectPublicKey.idx, CERT_ELEMENT_MAXLEN_PUBKEY);</span>
+<span class="lineNum">     766 </span>            :                                         }
+<span class="lineNum">     767 </span><span class="lineCov">         22 :                                         if (!strcasecmp(token,&quot;notafter&quot;)){</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :                                                 parse_hexstring(token, &amp;ram_cert.dc.notAfter, CERT_ELEMENT_MAXLEN_NOTAFTER);</span>
+<span class="lineNum">     770 </span>            :                                         }
+<span class="lineNum">     771 </span><span class="lineCov">         22 :                                         report_result(&quot;OK&quot;,NULL,lc);</span>
+<span class="lineNum">     772 </span><span class="lineCov">         22 :                                         break;</span>
+<span class="lineNum">     773 </span>            :                                 case TOKEN_INSERT:
+<span class="lineNum">     774 </span>            :                                         {
+<span class="lineNum">     775 </span><span class="lineCov">          9 :                                                 uint16_t slot = 0;</span>
+<span class="lineNum">     776 </span><span class="lineCov">          9 :                                                 libret = cache_insert_cert(&amp;ram_cert, &amp;slot);</span>
+<span class="lineNum">     777 </span><span class="lineCov">          9 :                                                 update_slotno_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, slot);</span>
+<span class="lineNum">     778 </span><span class="lineCov">          9 :                                                 check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     779 </span>            :                                         }
+<span class="lineNum">     780 </span><span class="lineCov">          9 :                                         break;</span>
+<span class="lineNum">     781 </span>            :                                 case TOKEN_DELETE:
+<span class="lineNum">     782 </span>            :                                         {
+<span class="lineNum">     783 </span>            :                                                 uint16_t slot_to_delete;
+<span class="lineNum">     784 </span>            : 
+<span class="lineNum">     785 </span><span class="lineCov">          5 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     786 </span><span class="lineCov">          5 :                                                 if (!strcasecmp(token,&quot;byslot&quot;)){</span>
+<span class="lineNum">     787 </span><span class="lineCov">          4 :                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     788 </span><span class="lineCov">          4 :                                                         sscanf(token,&quot;%hhu&quot;,(uint8_t *)&amp;slot_to_delete);</span>
+<span class="lineNum">     789 </span><span class="lineCov">          4 :                                                         libret = cache_delete_entry(slot_to_delete);</span>
+<span class="lineNum">     790 </span><span class="lineCov">          4 :                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     791 </span>            :                                                 }
+<span class="lineNum">     792 </span><span class="lineCov">          5 :                                                 if (!strcasecmp(token,&quot;byid&quot;)){</span>
+<span class="lineNum">     793 </span>            :                                                         //find and delete
+<span class="lineNum">     794 </span>            :                                                         CertBuffer tmpcert;
+<span class="lineNum">     795 </span><span class="lineCov">          1 :                                                         slot_to_delete = 0;</span>
+<span class="lineNum">     796 </span>            :                                                         uint8_t serial[CERT_ELEMENT_MAXLEN_SERIALNO];
+<span class="lineNum">     797 </span>            :                                                         uint8_t issuer[CERT_ELEMENT_MAXLEN_ISSUER];
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span><span class="lineCov">          1 :                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     800 </span><span class="lineCov">          1 :                                                         if (token == NULL) goto noparams_del;</span>
+<span class="lineNum">     801 </span><span class="lineCov">          1 :                                                         if (!strcasecmp(token,&quot;serial&quot;)){</span>
+<span class="lineNum">     802 </span><span class="lineCov">          1 :                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     803 </span><span class="lineCov">          1 :                                                                 if (token == NULL) goto noparams_del;</span>
+<span class="lineNum">     804 </span><span class="lineCov">          1 :                                                                 parse_hexstring(token, serial, CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">     805 </span>            :                                                         }
+<span class="lineNum">     806 </span>            :                                                         //get issuer from key-store
+<span class="lineNum">     807 </span><span class="lineCov">          1 :                                                         libret = get_issuer_from_store(serial, issuer);</span>
+<span class="lineNum">     808 </span><span class="lineCov">          1 :                                                         if (libret) goto check_report;</span>
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span><span class="lineCov">          1 :                                                         libret = cache_find_by_issuer_and_serial(issuer,CERT_ELEMENT_MAXLEN_ISSUER, serial, CERT_ELEMENT_MAXLEN_SERIALNO,</span>
+<span class="lineNum">     811 </span>            :                                                                         &amp;tmpcert, &amp;slot_to_delete);
+<span class="lineNum">     812 </span><span class="lineCov">          1 :                                                         if (libret != ERR_OK) goto check_report;</span>
+<span class="lineNum">     813 </span><span class="lineCov">          1 :                                                         libret = cache_delete_entry(slot_to_delete);</span>
+<span class="lineNum">     814 </span>            : check_report:
+<span class="lineNum">     815 </span><span class="lineCov">          1 :                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     816 </span><span class="lineCov">          1 :                                                         break;</span>
+<span class="lineNum">     817 </span>            : noparams_del:
+<span class="lineNum">     818 </span><span class="lineNoCov">          0 :                                                         printf(&quot;Line %d: Not enough parameters for delete byid. [syntax: delete byid serial &lt;val&gt;]\n&quot;,lc);</span>
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :                                                         break;</span>
+<span class="lineNum">     820 </span>            :                                                 }
+<span class="lineNum">     821 </span>            :                                         }
+<span class="lineNum">     822 </span><span class="lineCov">          4 :                                         break;</span>
+<span class="lineNum">     823 </span>            :                                 case TOKEN_FIND:
+<span class="lineNum">     824 </span>            :                                         {
+<span class="lineNum">     825 </span><span class="lineCov">         17 :                                                 uint16_t slot = 0;</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">         17 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     828 </span><span class="lineCov">         17 :                                                 if (token == NULL){</span>
+<span class="lineNum">     829 </span>            :                                                         //no arguments to find. Try find &quot;ram_cert&quot; in cache
+<span class="lineNum">     830 </span><span class="lineCov">          2 :                                                         libret = cache_find_cert(&amp;ram_cert, &amp;slot);</span>
+<span class="lineNum">     831 </span><span class="lineCov">          2 :                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     832 </span><span class="lineCov">          2 :                                                         break;</span>
+<span class="lineNum">     833 </span>            :                                                 }
+<span class="lineNum">     834 </span><span class="lineCov">         15 :                                                 switch(get_token_id(token)){</span>
+<span class="lineNum">     835 </span>            :                                                         case TOKEN_BYID:
+<span class="lineNum">     836 </span>            :                                                                 {
+<span class="lineNum">     837 </span>            :                                                                         uint8_t serial[CERT_ELEMENT_MAXLEN_SERIALNO];
+<span class="lineNum">     838 </span>            :                                                                         uint8_t issuer[CERT_ELEMENT_MAXLEN_ISSUER];
+<span class="lineNum">     839 </span>            : 
+<span class="lineNum">     840 </span><span class="lineCov">          2 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     841 </span><span class="lineCov">          2 :                                                                         if (token == NULL) goto noparams_find;</span>
+<span class="lineNum">     842 </span><span class="lineCov">          2 :                                                                         if (!strcasecmp(token,&quot;serial&quot;)){</span>
+<span class="lineNum">     843 </span><span class="lineCov">          2 :                                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     844 </span><span class="lineCov">          2 :                                                                                 parse_hexstring(token, &amp;serial, CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">     845 </span>            :                                                                         }
+<span class="lineNum">     846 </span><span class="lineCov">          2 :                                                                         libret = get_issuer_from_store(serial, issuer);</span>
+<span class="lineNum">     847 </span><span class="lineCov">          2 :                                                                         if (libret) {</span>
+<span class="lineNum">     848 </span>            :                                                                                 //no valid entry in key store. so we test API with invalid input
+<span class="lineNum">     849 </span><span class="lineCov">          1 :                                                                                 memset(issuer, 0, CERT_ELEMENT_MAXLEN_ISSUER);</span>
+<span class="lineNum">     850 </span>            :                                                                         }
+<span class="lineNum">     851 </span><span class="lineCov">          2 :                                                                         libret = cache_find_by_issuer_and_serial(issuer,CERT_ELEMENT_MAXLEN_ISSUER, </span>
+<span class="lineNum">     852 </span>            :                                                                                         serial, CERT_ELEMENT_MAXLEN_SERIALNO,
+<span class="lineNum">     853 </span>            :                                                                                         &amp;find_result_pcert, &amp;slot);
+<span class="lineNum">     854 </span><span class="lineCov">          2 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     855 </span><span class="lineCov">          2 :                                                                         goto out;</span>
+<span class="lineNum">     856 </span>            : noparams_find:
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :                                                                         printf(&quot;Line %d: Not enough parameters for find byid. [syntax: find byid serial &lt;val&gt;]\n&quot;,lc);</span>
+<span class="lineNum">     858 </span>            :                                                                 }
+<span class="lineNum">     859 </span>            : out:
+<span class="lineNum">     860 </span><span class="lineCov">          2 :                                                                 break;</span>
+<span class="lineNum">     861 </span>            :                                                         case TOKEN_BYSLOT:
+<span class="lineNum">     862 </span>            :                                                                 {
+<span class="lineNum">     863 </span>            :                                                                         uint8_t slotno;
+<span class="lineNum">     864 </span><span class="lineCov">          2 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     865 </span><span class="lineCov">          2 :                                                                         sscanf(token,&quot;%hhu&quot;,&amp;slotno);</span>
+<span class="lineNum">     866 </span><span class="lineCov">          2 :                                                                         libret =  cache_find_by_slot_number(slotno, &amp;find_result_pcert);</span>
+<span class="lineNum">     867 </span><span class="lineCov">          2 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     868 </span>            :                                                                 }
+<span class="lineNum">     869 </span><span class="lineCov">          2 :                                                                 break;</span>
+<span class="lineNum">     870 </span>            :                                                         case TOKEN_BCBYMAC:
+<span class="lineNum">     871 </span>            :                                                                 {
+<span class="lineNum">     872 </span>            :                                                                         uint8_t mac_addr[8];
+<span class="lineNum">     873 </span><span class="lineCov">          2 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     874 </span><span class="lineCov">          2 :                                                                         parse_hexstring(token, mac_addr, 8);</span>
+<span class="lineNum">     875 </span><span class="lineCov">          2 :                                                                         libret = cache_find_BC_by_MAC_address(mac_addr,&amp;find_result_pcert, &amp;slot);</span>
+<span class="lineNum">     876 </span><span class="lineCov">          2 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     877 </span>            :                                                                 }
+<span class="lineNum">     878 </span><span class="lineCov">          2 :                                                                 break;</span>
+<span class="lineNum">     879 </span>            :                                                         case TOKEN_DLBYMAC:
+<span class="lineNum">     880 </span>            :                                                                 {
+<span class="lineNum">     881 </span>            :                                                                         uint8_t mac_addr[8];
+<span class="lineNum">     882 </span><span class="lineCov">          2 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     883 </span><span class="lineCov">          2 :                                                                         parse_hexstring(token, mac_addr, 8);</span>
+<span class="lineNum">     884 </span><span class="lineCov">          2 :                                                                         libret = cache_find_DL_by_MAC_address(mac_addr,&amp;find_result_pcert, &amp;slot);</span>
+<span class="lineNum">     885 </span><span class="lineCov">          2 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     886 </span>            :                                                                 }
+<span class="lineNum">     887 </span><span class="lineCov">          2 :                                                                 break;</span>
+<span class="lineNum">     888 </span>            :                                                         case TOKEN_ISSUER:
+<span class="lineNum">     889 </span>            :                                                                 {
+<span class="lineNum">     890 </span>            :                                                                         uint8_t serial[CERT_ELEMENT_MAXLEN_SERIALNO];
+<span class="lineNum">     891 </span>            :                                                                         uint8_t issuer[CERT_ELEMENT_MAXLEN_ISSUER];
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span><span class="lineCov">          1 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     894 </span><span class="lineCov">          1 :                                                                         if (token == NULL) goto token_issuer_noparams;</span>
+<span class="lineNum">     895 </span><span class="lineCov">          1 :                                                                         if (!strcasecmp(token,&quot;serial&quot;)){</span>
+<span class="lineNum">     896 </span><span class="lineCov">          1 :                                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     897 </span><span class="lineCov">          1 :                                                                                 parse_hexstring(token, &amp;serial, CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">     898 </span>            :                                                                         }
+<span class="lineNum">     899 </span><span class="lineCov">          1 :                                                                         libret = get_issuer_from_store(serial, issuer);</span>
+<span class="lineNum">     900 </span><span class="lineCov">          1 :                                                                         if (libret) goto check_report;</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span><span class="lineCov">          1 :                                                                         libret = cache_find_by_issuer_and_serial(issuer,CERT_ELEMENT_MAXLEN_ISSUER, </span>
+<span class="lineNum">     903 </span>            :                                                                                         serial, CERT_ELEMENT_MAXLEN_SERIALNO, &amp;find_result_pcert, &amp;slot);
+<span class="lineNum">     904 </span><span class="lineCov">          1 :                                                                         if (libret != ERR_OK) {</span>
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :                                                                                 printf(&quot;mcert not found.\n&quot;);</span>
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :                                                                                 break;</span>
+<span class="lineNum">     907 </span>            :                                                                         }
+<span class="lineNum">     908 </span><span class="lineCov">          1 :                                                                         libret = cache_find_issuer(&amp;find_result_pcert, &amp;find_result_issuer, &amp;slot);</span>
+<span class="lineNum">     909 </span><span class="lineCov">          1 :                                                                         if (libret == ERR_OK) {</span>
+<span class="lineNum">     910 </span><span class="lineCov">          1 :                                                                                 print_pcert(&amp;find_result_issuer);</span>
+<span class="lineNum">     911 </span>            :                                                                         }
+<span class="lineNum">     912 </span><span class="lineCov">          1 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     913 </span><span class="lineCov">          1 :                                                                         break;</span>
+<span class="lineNum">     914 </span>            : token_issuer_noparams:
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :                                                                         printf(&quot;Line %d: Not enough or incorrect sequence of parameters for find issuer. [syntax: find issuer certid &lt;val&gt; sysid &lt;val&gt;]\n&quot;,lc);</span>
+<span class="lineNum">     916 </span>            :                                                                 }
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :                                                                 break;</span>
+<span class="lineNum">     918 </span>            :                                                         case TOKEN_BYSUBJ:
+<span class="lineNum">     919 </span>            :                                                                 {
+<span class="lineNum">     920 </span>            :                                                                         uint8_t subject[CERT_ELEMENT_MAXLEN_SUBJECT];   
+<span class="lineNum">     921 </span>            :                                                                         uint8_t skid[CERT_ELEMENT_MAXLEN_SUBJKEYID];    
+<span class="lineNum">     922 </span>            : 
+<span class="lineNum">     923 </span><span class="lineCov">          3 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     924 </span><span class="lineCov">          3 :                                                                         if (token == NULL) goto token_issuer_noparams;</span>
+<span class="lineNum">     925 </span><span class="lineCov">          3 :                                                                         if (!strcasecmp(token,&quot;subject&quot;)){</span>
+<span class="lineNum">     926 </span><span class="lineCov">          3 :                                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     927 </span><span class="lineCov">          3 :                                                                                 parse_hexstring(token, &amp;subject, CERT_ELEMENT_MAXLEN_SUBJECT);</span>
+<span class="lineNum">     928 </span>            :                                                                         }
+<span class="lineNum">     929 </span><span class="lineCov">          3 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     930 </span><span class="lineCov">          3 :                                                                         if (token == NULL) goto token_issuer_noparams;</span>
+<span class="lineNum">     931 </span><span class="lineCov">          3 :                                                                         if (!strcasecmp(token,&quot;skid&quot;)){</span>
+<span class="lineNum">     932 </span><span class="lineCov">          3 :                                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">     933 </span><span class="lineCov">          3 :                                                                                 parse_hexstring(token, &amp;skid, CERT_ELEMENT_MAXLEN_SUBJKEYID);</span>
+<span class="lineNum">     934 </span>            :                                                                         }
+<span class="lineNum">     935 </span><span class="lineCov">          3 :                                                                         libret = cache_find_by_subject_and_SKID(subject, CERT_ELEMENT_MAXLEN_SUBJECT,</span>
+<span class="lineNum">     936 </span>            :                                                                                         skid, CERT_ELEMENT_MAXLEN_SUBJKEYID,&amp;find_result_pcert, &amp;slot);
+<span class="lineNum">     937 </span><span class="lineCov">          3 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     938 </span>            :                                                                 }
+<span class="lineNum">     939 </span><span class="lineCov">          3 :                                                                 break;</span>
+<span class="lineNum">     940 </span>            :                                                         case TOKEN_OPER:
+<span class="lineNum">     941 </span>            :                                                                 {
+<span class="lineNum">     942 </span>            :                                                                         uint16_t slotno;
+<span class="lineNum">     943 </span><span class="lineCov">          3 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">     944 </span><span class="lineCov">          3 :                                                                         sscanf(token,&quot;%hu&quot;,&amp;slotno);</span>
+<span class="lineNum">     945 </span><span class="lineCov">          3 :                                                                         libret = cache_find_next_operator_cert(&amp;find_result_pcert, &amp;slotno);</span>
+<span class="lineNum">     946 </span><span class="lineCov">          3 :                                                                         if (libret == ERR_OK) printf(&quot;found @ slot %d\n&quot;, slotno);</span>
+<span class="lineNum">     947 </span><span class="lineCov">          3 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">     948 </span>            :                                                                 }
+<span class="lineNum">     949 </span><span class="lineCov">          3 :                                                                 break;</span>
+<span class="lineNum">     950 </span>            :                                                         default:
+<span class="lineNum">     951 </span><span class="lineNoCov">          0 :                                                                 printf(&quot;Unsupported specifier %s for find.\n&quot;, token);</span>
+<span class="lineNum">     952 </span>            :                                                                 break;
+<span class="lineNum">     953 </span>            :                                                 }
+<span class="lineNum">     954 </span>            :                                         }
+<span class="lineNum">     955 </span><span class="lineCov">         15 :                                         break;</span>
+<span class="lineNum">     956 </span>            : 
+<span class="lineNum">     957 </span>            :                                 case TOKEN_CREATE:
+<span class="lineNum">     958 </span>            :                                         {
+<span class="lineNum">     959 </span><span class="lineCov">          8 :                                                 EC_KEY *eckey = NULL;</span>
+<span class="lineNum">     960 </span>            :                                                 uint8_t pubkey[65];
+<span class="lineNum">     961 </span>            :                                                 //create key pair, store in keypair_store and set pubkey of test_mcert
+<span class="lineNum">     962 </span><span class="lineCov">          8 :                                                 create_new_ec_key_pair(&amp;eckey, pubkey);</span>
+<span class="lineNum">     963 </span><span class="lineCov">          8 :                                                 add_keypair_to_store((uint8_t *)ram_cert.buffer + ram_cert.dc.serialNumber.idx, </span>
+<span class="lineNum">     964 </span>            :                                                                 (uint8_t *)ram_cert.buffer + ram_cert.dc.subject.idx, eckey, pubkey, 
+<span class="lineNum">     965 </span>            :                                                                 (uint8_t *)ram_cert.buffer + ram_cert.dc.SubjKeyID.idx);
+<span class="lineNum">     966 </span><span class="lineCov">          8 :                                                 memcpy(ram_cert.buffer + ram_cert.dc.subjectPublicKey.idx, pubkey, CERT_ELEMENT_MAXLEN_PUBKEY);</span>
+<span class="lineNum">     967 </span>            :                                                 //TODO: update AuthKeyID and subjKeyID ?
+<span class="lineNum">     968 </span>            :                                                 //
+<span class="lineNum">     969 </span>            :                                                 /*
+<span class="lineNum">     970 </span>            :                                                    For CA certificates, subject key identifiers SHOULD be derived from
+<span class="lineNum">     971 </span>            :                                                    the public key or a method that generates unique values.  Two common
+<span class="lineNum">     972 </span>            :                                                    methods for generating key identifiers from the public key are:
+<span class="lineNum">     973 </span>            : 
+<span class="lineNum">     974 </span>            :                                                    (1) The keyIdentifier is composed of the 160-bit SHA-1 hash of the
+<span class="lineNum">     975 </span>            :                                                    value of the BIT STRING subjectPublicKey (excluding the tag,
+<span class="lineNum">     976 </span>            :                                                    length, and number of unused bits).
+<span class="lineNum">     977 </span>            : 
+<span class="lineNum">     978 </span>            :                                                    (2) The keyIdentifier is composed of a four bit type field with
+<span class="lineNum">     979 </span>            :                                                    the value 0100 followed by the least significant 60 bits of the
+<span class="lineNum">     980 </span>            :                                                    SHA-1 hash of the value of the BIT STRING subjectPublicKey
+<span class="lineNum">     981 </span>            :                                                    (excluding the tag, length, and number of unused bit string bits).
+<span class="lineNum">     982 </span>            : 
+<span class="lineNum">     983 </span>            :                                                    One common method for generating unique values is a monotonically
+<span class="lineNum">     984 </span>            :                                                    increasing sequence of integers.
+<span class="lineNum">     985 </span>            :                                                    */
+<span class="lineNum">     986 </span><span class="lineCov">          8 :                                                 check_and_report_result(ERR_OK, expected_result, line, lc);</span>
+<span class="lineNum">     987 </span>            :                                         }
+<span class="lineNum">     988 </span><span class="lineCov">          8 :                                         break;</span>
+<span class="lineNum">     989 </span>            : 
+<span class="lineNum">     990 </span>            :                                 case TOKEN_SIGN:
+<span class="lineNum">     991 </span>            :                                         {
+<span class="lineNum">     992 </span><span class="lineCov">          8 :                                                 EC_KEY *signer_key = NULL;</span>
+<span class="lineNum">     993 </span><span class="lineCov">          8 :                                                 uint8_t *signer_pubkey = NULL,*issuer_subjkeyid;</span>
+<span class="lineNum">     994 </span>            :                                                 CertBuffer cert_local;
+<span class="lineNum">     995 </span>            :                                                 uint8_t serial[CERT_ELEMENT_MAXLEN_SERIALNO];
+<span class="lineNum">     996 </span>            :                                                 uint8_t subject[CERT_ELEMENT_MAXLEN_ISSUER];
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span><span class="lineCov">          8 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">          8 :                                                 if (token == NULL){</span>
+<span class="lineNum">    1001 </span>            :                                                         //no arguments to sign. sign using keypair of root certificate
+<span class="lineNum">    1002 </span><span class="lineCov">          5 :                                                         libret = cert_cache_read_cert(&amp;cert_local, ROOT_CERT_SLOT);</span>
+<span class="lineNum">    1003 </span><span class="lineCov">          5 :                                                         if (libret != ERR_OK) {</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :                                                                 printf(&quot;Error reading cert from cache\n&quot;);</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :                                                                 break;</span>
+<span class="lineNum">    1006 </span>            :                                                         }
+<span class="lineNum">    1007 </span><span class="lineCov">          5 :                                                         get_keypair_from_store(cert_local.buffer + cert_local.dc.serialNumber.idx, &amp;signer_key, &amp;signer_pubkey,subject);</span>
+<span class="lineNum">    1008 </span><span class="lineCov">          5 :                                                         libret = sign_cert(&amp;ram_cert, signer_key,signer_pubkey,subject, cert_local.buffer + cert_local.dc.SubjKeyID.idx);</span>
+<span class="lineNum">    1009 </span><span class="lineCov">          5 :                                                         update_issuer_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, </span>
+<span class="lineNum">    1010 </span>            :                                                                         cert_local.buffer + cert_local.dc.issuer.idx,
+<span class="lineNum">    1011 </span>            :                                                                         cert_local.buffer + cert_local.dc.AuthKeyID.idx);
+<span class="lineNum">    1012 </span><span class="lineCov">          5 :                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">    1013 </span><span class="lineCov">          5 :                                                         break;</span>
+<span class="lineNum">    1014 </span>            :                                                 }
+<span class="lineNum">    1015 </span><span class="lineCov">          3 :                                                 switch(get_token_id(token)){</span>
+<span class="lineNum">    1016 </span>            :                                                         case TOKEN_USING:
+<span class="lineNum">    1017 </span>            :                                                                 {
+<span class="lineNum">    1018 </span><span class="lineCov">          2 :                                                                         token = get_next_token((char *)line);</span>
+<span class="lineNum">    1019 </span><span class="lineCov">          2 :                                                                         if (token == NULL) goto noparams_sign_using;</span>
+<span class="lineNum">    1020 </span><span class="lineCov">          2 :                                                                         if (!strcasecmp(token,&quot;serial&quot;)){</span>
+<span class="lineNum">    1021 </span><span class="lineCov">          2 :                                                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">    1022 </span><span class="lineCov">          2 :                                                                                 if (token == NULL) goto noparams_sign_using;</span>
+<span class="lineNum">    1023 </span><span class="lineCov">          2 :                                                                                 parse_hexstring(token, &amp;serial, CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">    1024 </span>            :                                                                         }
+<span class="lineNum">    1025 </span><span class="lineCov">          2 :                                                                         get_keypair_from_store(serial,&amp;signer_key,&amp;signer_pubkey,subject);</span>
+<span class="lineNum">    1026 </span><span class="lineCov">          2 :                                                                         get_subjkeyid_from_store(serial, &amp;issuer_subjkeyid);</span>
+<span class="lineNum">    1027 </span><span class="lineCov">          2 :                                                                         libret = sign_cert(&amp;ram_cert,signer_key,signer_pubkey,subject,issuer_subjkeyid);</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          2 :                                                                         if (libret != ERR_OK) {</span>
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :                                                                                 printf(&quot;sign_cert returned Error\n&quot;);</span>
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :                                                                                 break;</span>
+<span class="lineNum">    1031 </span>            :                                                                         }
+<span class="lineNum">    1032 </span><span class="lineCov">          2 :                                                                         update_issuer_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, subject, issuer_subjkeyid);</span>
+<span class="lineNum">    1033 </span><span class="lineCov">          2 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">    1034 </span><span class="lineCov">          2 :                                                                         break;</span>
+<span class="lineNum">    1035 </span>            : noparams_sign_using:
+<span class="lineNum">    1036 </span><span class="lineNoCov">          0 :                                                                         printf(&quot;Line %d: Not enough or incorrect sequence of parameters for \&quot;sign using\&quot;.\n&quot;,lc);</span>
+<span class="lineNum">    1037 </span><span class="lineNoCov">          0 :                                                                         printf(&quot;sign [self | using serial &lt;8-octets&gt;|*&lt;octet&gt;]\n&quot;);</span>
+<span class="lineNum">    1038 </span>            :                                                                 }
+<span class="lineNum">    1039 </span><span class="lineNoCov">          0 :                                                                 break;</span>
+<span class="lineNum">    1040 </span>            :                                                         case TOKEN_SELF:
+<span class="lineNum">    1041 </span>            :                                                                 {
+<span class="lineNum">    1042 </span>            :                                                                         //sign using keypair of test_mcert
+<span class="lineNum">    1043 </span><span class="lineCov">          1 :                                                                         libret = sign_cert(&amp;ram_cert, ram_cert_eckey, ram_cert.buffer + ram_cert.dc.subjectPublicKey.idx,</span>
+<span class="lineNum">    1044 </span>            :                                                                                         ram_cert.buffer + ram_cert.dc.subject.idx, ram_cert.buffer + ram_cert.dc.SubjKeyID.idx);
+<span class="lineNum">    1045 </span><span class="lineCov">          1 :                                                                         memcpy(ram_cert.buffer + ram_cert.dc.issuer.idx, </span>
+<span class="lineNum">    1046 </span>            :                                                                                         ram_cert.buffer + ram_cert.dc.subject.idx, CERT_ELEMENT_MAXLEN_ISSUER);
+<span class="lineNum">    1047 </span><span class="lineCov">          1 :                                                                         memcpy(ram_cert.buffer + ram_cert.dc.AuthKeyID.idx, </span>
+<span class="lineNum">    1048 </span>            :                                                                                         ram_cert.buffer + ram_cert.dc.SubjKeyID.idx, CERT_ELEMENT_MAXLEN_AUTHKEYID);
+<span class="lineNum">    1049 </span><span class="lineCov">          1 :                                                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">    1050 </span>            :                                                                 }
+<span class="lineNum">    1051 </span><span class="lineCov">          1 :                                                                 break;</span>
+<span class="lineNum">    1052 </span>            :                                                         default:
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :                                                                 printf(&quot;sign [self | using serial &lt;8-octets&gt;|*&lt;octet&gt;]\n&quot;);</span>
+<span class="lineNum">    1054 </span>            :                                                                 break;
+<span class="lineNum">    1055 </span>            :                                                 }
+<span class="lineNum">    1056 </span>            :                                         }
+<span class="lineNum">    1057 </span><span class="lineCov">          3 :                                         break;</span>
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span>            :                                 case TOKEN_CHECK_SANITY:
+<span class="lineNum">    1060 </span><span class="lineCov">          2 :                                         libret = cache_check_sanity();  </span>
+<span class="lineNum">    1061 </span><span class="lineCov">          2 :                                         check_and_report_result(libret, expected_result, line, lc);</span>
+<span class="lineNum">    1062 </span>            : 
+<span class="lineNum">    1063 </span><span class="lineCov">          2 :                                         break;</span>
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span>            :                                 case TOKEN_PRINT_INDEX:
+<span class="lineNum">    1066 </span><span class="lineCov">          4 :                                         print_index();</span>
+<span class="lineNum">    1067 </span><span class="lineCov">          4 :                                         break;</span>
+<span class="lineNum">    1068 </span>            :                                 case TOKEN_PRINT_CACHE:
+<span class="lineNum">    1069 </span>            :                                         {
+<span class="lineNum">    1070 </span>            :                                                 struct CertBuffer_cache_entry ce;
+<span class="lineNum">    1071 </span>            :                                                 uint8_t curr;
+<span class="lineNum">    1072 </span>            : 
+<span class="lineNum">    1073 </span><span class="lineCov">          2 :                                                 printf(&quot;Cert_cache:\n&quot;);</span>
+<span class="lineNum">    1074 </span><span class="lineCov">          2 :                                                 curr = used_list_head;</span>
+<span class="lineNum">    1075 </span><span class="lineCov">         14 :                                                 while ( curr != 0xFF) {</span>
+<span class="lineNum">    1076 </span>            : 
+<span class="lineNum">    1077 </span><span class="lineCov">         10 :                                                         get_fullcert_from_cert_cache((void *)&amp;(ce.cb), used_list[curr].cache_slot);</span>
+<span class="lineNum">    1078 </span><span class="lineCov">         10 :                                                         printf(&quot;#%d:\n&quot;,used_list[curr].cache_slot);</span>
+<span class="lineNum">    1079 </span><span class="lineCov">         10 :                                                         printf(&quot;SerialNumber       : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.serialNumber.idx), CERT_ELEMENT_MAXLEN_SERIALNO);</span>
+<span class="lineNum">    1080 </span>            :                                                         //printf(&quot;Subject                          : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.subject.idx), CERT_ELEMENT_MAXLEN_SUBJECT);
+<span class="lineNum">    1081 </span><span class="lineCov">         10 :                                                         printf(&quot;Subject            : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.subject.idx), 16);</span>
+<span class="lineNum">    1082 </span>            :                                                         //printf(&quot;Issuer                           : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.issuer.idx), CERT_ELEMENT_MAXLEN_ISSUER);
+<span class="lineNum">    1083 </span><span class="lineCov">         10 :                                                         printf(&quot;Issuer             : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.issuer.idx), 16);</span>
+<span class="lineNum">    1084 </span>            :                                                         //printf(&quot;Public key               )       : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.subjectPublicKey.idx), CERT_ELEMENT_MAXLEN_PUBKEY);
+<span class="lineNum">    1085 </span><span class="lineCov">         10 :                                                         printf(&quot;Public key : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.subjectPublicKey.idx), 16);</span>
+<span class="lineNum">    1086 </span><span class="lineCov">         10 :                                                         printf(&quot;AltNames           : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.AltNames.idx), 16);</span>
+<span class="lineNum">    1087 </span><span class="lineCov">         10 :                                                         printf(&quot;SubjKeyID          : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.SubjKeyID.idx), 16);</span>
+<span class="lineNum">    1088 </span><span class="lineCov">         10 :                                                         printf(&quot;AuthKeyID  : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.AuthKeyID.idx), 16);</span>
+<span class="lineNum">    1089 </span><span class="lineCov">         10 :                                                         printf(&quot;Policies           : &quot;);hexdump((uint8_t *)(ce.cb.buffer + ce.cb.dc.Policies.idx), ce.cb.dc.Policies.len);</span>
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span><span class="lineCov">         10 :                                                         curr = used_list[curr].next;</span>
+<span class="lineNum">    1092 </span>            :                                                 }
+<span class="lineNum">    1093 </span>            :                                         }
+<span class="lineNum">    1094 </span><span class="lineCov">          2 :                                         break;</span>
+<span class="lineNum">    1095 </span>            :                                 case TOKEN_PRINT_CERT:
+<span class="lineNum">    1096 </span>            :                                         {
+<span class="lineNum">    1097 </span>            :                                                 uint16_t index;
+<span class="lineNum">    1098 </span>            :                                                 struct CertBuffer_cache_entry ce;
+<span class="lineNum">    1099 </span><span class="lineCov">          5 :                                                 token = get_next_token((char *)line);</span>
+<span class="lineNum">    1100 </span><span class="lineCov">          5 :                                                 if (token) {</span>
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 :                                                         sscanf(token,&quot;%hhu&quot;,(uint8_t *)&amp;index);</span>
+<span class="lineNum">    1102 </span><span class="lineNoCov">          0 :                                                         get_fullcert_from_cert_cache((void *)&amp;(ce.cb), index);</span>
+<span class="lineNum">    1103 </span><span class="lineNoCov">          0 :                                                         print_pcert(&amp;(ce.cb));</span>
+<span class="lineNum">    1104 </span>            :                                                 }
+<span class="lineNum">    1105 </span>            :                                                 else
+<span class="lineNum">    1106 </span><span class="lineCov">          5 :                                                         print_pcert(&amp;ram_cert);</span>
+<span class="lineNum">    1107 </span>            :                                         }
+<span class="lineNum">    1108 </span><span class="lineCov">          5 :                                         break;</span>
+<span class="lineNum">    1109 </span>            : 
+<span class="lineNum">    1110 </span>            :                                 case TOKEN_PRINT_MSG:
+<span class="lineNum">    1111 </span>            :                                         //print everything except &quot;print &quot;
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :                                         printf(&quot;%s\n&quot;,line+6);</span>
+<span class="lineNum">    1113 </span><span class="lineCov">          1 :                                         token = NULL;</span>
+<span class="lineNum">    1114 </span><span class="lineCov">          1 :                                         continue;</span>
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span>            :                                 case TOKEN_PROMPT:
+<span class="lineNum">    1117 </span><span class="lineNoCov">          0 :                                         prompt = 1;</span>
+<span class="lineNum">    1118 </span><span class="lineNoCov">          0 :                                         break;</span>
+<span class="lineNum">    1119 </span>            : 
+<span class="lineNum">    1120 </span>            :                                 case TOKEN_EXIT:
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :                                         done = 1;</span>
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :                                         token = NULL;</span>
+<span class="lineNum">    1123 </span><span class="lineNoCov">          0 :                                         continue;</span>
+<span class="lineNum">    1124 </span>            :                                         //return 0;
+<span class="lineNum">    1125 </span>            : 
+<span class="lineNum">    1126 </span>            :                                 default:
+<span class="lineNum">    1127 </span><span class="lineNoCov">          0 :                                         printf(&quot;Unrecognized keyword %s\n&quot;, token);</span>
+<span class="lineNum">    1128 </span>            :                                         break;
+<span class="lineNum">    1129 </span>            :                         }
+<span class="lineNum">    1130 </span><span class="lineCov">        115 :                         token = get_next_token((char *)line);</span>
+<span class="lineNum">    1131 </span>            :                 }
+<span class="lineNum">    1132 </span>            :         }
+<span class="lineNum">    1133 </span><span class="lineCov">          1 :         clear_ec_key_store();</span>
+<span class="lineNum">    1134 </span><span class="lineCov">          1 :         mc_cache_uninit();</span>
+<span class="lineNum">    1135 </span><span class="lineCov">          1 :         printf(&quot;All done.\n&quot;);</span>
+<span class="lineNum">    1136 </span><span class="lineCov">          1 :         if (fp) fclose(fp);</span>
+<span class="lineNum">    1137 </span><span class="lineCov">          1 :         return 0;</span>
+<span class="lineNum">    1138 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

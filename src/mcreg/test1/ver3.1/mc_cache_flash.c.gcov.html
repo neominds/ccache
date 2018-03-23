@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - test1.info - ver3.1/mc_cache_flash.c</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">ver3.1</a> - mc_cache_flash.c<span style="font-size: 80%;"> (source / <a href="mc_cache_flash.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">test1.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntryMed">84.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2018-03-22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntryMed">85.7 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* </a>
+<span class="lineNum">       2 </span>            :  * mc_cache_flash.c
+<span class="lineNum">       3 </span>            :  * Copyright SilverSpring Networks 2018.
+<span class="lineNum">       4 </span>            :  * All rights reserved.
+<span class="lineNum">       5 </span>            :  *
+<span class="lineNum">       6 </span>            :  * cert cache routines to read/write flash
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : //#define UCOSII
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : /*
+<span class="lineNum">      12 </span>            :  * Flash I/O abstraction notes
+<span class="lineNum">      13 </span>            :  *
+<span class="lineNum">      14 </span>            :  * A flash abstraction layer shall have APIs that cert cache can access without requiring to care about 
+<span class="lineNum">      15 </span>            :  * underlying actual calls and method of flash interface. 
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * Following APIs are required
+<span class="lineNum">      18 </span>            :  *
+<span class="lineNum">      19 </span>            :  * error_t cert_cache_read_cert(struct CertBuffer *cert, uint8_t slotno)
+<span class="lineNum">      20 </span>            :  * error_t cert_cache_write_cert(struct CertBuffer *cert, uint8_t slotno)
+<span class="lineNum">      21 </span>            :  * error_t cert_cache_delete_cert(uint8_t slotno)
+<span class="lineNum">      22 </span>            :  * error_t cert_cache_read_index(struct cert_cache_index *index)
+<span class="lineNum">      23 </span>            :  * error_t cert_cache_write_index(struct cert_cache_index *index)
+<span class="lineNum">      24 </span>            :  *
+<span class="lineNum">      25 </span>            :  * Flash layer shall implement these APIs for 3 scenarios.
+<span class="lineNum">      26 </span>            :  * Cache simulated in RAM - for Linux based tests
+<span class="lineNum">      27 </span>            :  * Flash operations via sysvar APIs
+<span class="lineNum">      28 </span>            :  * Flash operations using cert_cache_xxx APIs
+<span class="lineNum">      29 </span>            :  *
+<span class="lineNum">      30 </span>            :  *
+<span class="lineNum">      31 </span>            : */
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #ifdef UCOSII
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      36 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      37 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      38 </span>            : #include &quot;mcert_cache.h&quot;
+<span class="lineNum">      39 </span>            : #include &lt;mc_cache.h&gt;
+<span class="lineNum">      40 </span>            : #include &lt;ucos_ii.h&gt;
+<span class="lineNum">      41 </span>            : #include &quot;os_cfg.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;assert.h&quot;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : static uint16_t get_id_from_slotno(uint8_t slotno)
+<span class="lineNum">      45 </span>            : {
+<span class="lineNum">      46 </span>            : //TODO
+<span class="lineNum">      47 </span>            : return (uint16_t)slotno;
+<span class="lineNum">      48 </span>            : }
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : error_t cert_cache_read_cert(struct mCert *cert, uint8_t slotno)
+<span class="lineNum">      51 </span>            : {
+<span class="lineNum">      52 </span>            :         uint16_t id,out_len;
+<span class="lineNum">      53 </span>            :         struct mCert_cache_entry cache_entry_local;
+<span class="lineNum">      54 </span>            :         error_t ret;
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            :         id = get_id_from_slotno(slotno);
+<span class="lineNum">      57 </span>            :         ret =  cert_cache_get(id, (void *)cache_entry_local, sizeof(struct mCert_cache_entry), &amp;out_len); 
+<span class="lineNum">      58 </span>            :          //error_t cert_cache_get(uint16_t id, void *val, size_t len, uint16_t *out_len)
+<span class="lineNum">      59 </span>            :         if (ret == ERR_OK) {
+<span class="lineNum">      60 </span>            :                 assert(cache_entry_local.valid == CERT_ENTRY_VALID);
+<span class="lineNum">      61 </span>            :                 *cert = *(cache_entry_local.mCert);
+<span class="lineNum">      62 </span>            :         }
+<span class="lineNum">      63 </span>            :         return ret;     
+<span class="lineNum">      64 </span>            : }
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : error_t cert_cache_write_cert(struct mCert *cert, uint8_t slotno)
+<span class="lineNum">      67 </span>            : {
+<span class="lineNum">      68 </span>            :         uint16_t id,out_len;
+<span class="lineNum">      69 </span>            :         struct mCert_cache_entry cache_entry_local;
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :         id = get_id_from_slotno(slotno);
+<span class="lineNum">      72 </span>            :         cache_entry_local.valid = CERT_ENTRY_VALID;
+<span class="lineNum">      73 </span>            :         *(cache_entry_local.mCert) = *cert;
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :         return cert_cache_add(id,(const void *)&amp;cache_entry_local, sizeof(struct mCert_cache_entry));
+<span class="lineNum">      76 </span>            : }
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : error_t cert_cache_delete_cert(uint8_t slotno)
+<span class="lineNum">      79 </span>            : {
+<span class="lineNum">      80 </span>            :         uint16_t id;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :         //mark valid field to CERT_ENTRY_INVALID ?
+<span class="lineNum">      83 </span>            :         id = get_id_from_slotno(slotno);
+<span class="lineNum">      84 </span>            :         return cert_cache_del(id);
+<span class="lineNum">      85 </span>            : }
+<span class="lineNum">      86 </span>            : #endif
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            : #ifdef USE_SYSVAR_API
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      91 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      92 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      93 </span>            : #include &quot;mcert_cache.h&quot;
+<span class="lineNum">      94 </span>            : #include &lt;mc_cache.h&gt;
+<span class="lineNum">      95 </span>            : #include &lt;ucos_ii.h&gt;
+<span class="lineNum">      96 </span>            : #include &quot;os_cfg.h&quot;
+<span class="lineNum">      97 </span>            : #include &lt;sysvar.h&gt;
+<span class="lineNum">      98 </span>            : #include &quot;assert.h&quot;
+<span class="lineNum">      99 </span>            : //#include &lt;cert_cache.h&gt;
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            : //sysvar ids
+<span class="lineNum">     102 </span>            : #define MCERT_CACHE_SYSVAR_ID_INDEX     5001            //TODO: fix sysvar ids
+<span class="lineNum">     103 </span>            : #define MCERT_CACHE_SYSVAR_ID_START     5002
+<span class="lineNum">     104 </span>            : #define MCERT_CACHE_SYSVAR_ID_END       MCERT_CACHE_SYSVAR_ID_START + TOTAL_MCERT_SLOTS
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : /**
+<span class="lineNum">     107 </span>            :  * read one field from mCert store
+<span class="lineNum">     108 </span>            :  * @param - dest is buffer to return value of field
+<span class="lineNum">     109 </span>            :  * @param - n is number of bytes to read
+<span class="lineNum">     110 </span>            :  * @param - index is the cert_cache index to read from
+<span class="lineNum">     111 </span>            :  * @param - offset is start position of field within mCert
+<span class="lineNum">     112 </span>            :  * @return standard error codes
+<span class="lineNum">     113 </span>            :  */
+<span class="lineNum">     114 </span>            : error_t get_field_from_cert_cache(void *dest, uint16_t n, uint8_t index, uint16_t offset)
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span>            : error_t ret;
+<span class="lineNum">     117 </span>            : uint16_t len_read;
+<span class="lineNum">     118 </span>            :         assert(dest);
+<span class="lineNum">     119 </span>            :         ret = sysvar_read(MCERT_CACHE_SYSVAR_ID_START+index, dest, offset,n,&amp;len_read,NULL);
+<span class="lineNum">     120 </span>            :         if (ret != ERR_OK || n != len_read) {
+<span class="lineNum">     121 </span>            :                 return ret;
+<span class="lineNum">     122 </span>            :         }
+<span class="lineNum">     123 </span>            : return ERR_OK; 
+<span class="lineNum">     124 </span>            : }
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : /**
+<span class="lineNum">     127 </span>            :  * read whole mCert from mCert store
+<span class="lineNum">     128 </span>            :  * @param - dest is buffer to return mcert 
+<span class="lineNum">     129 </span>            :  * @param - index is the cert_cache index to read from
+<span class="lineNum">     130 </span>            :  * @return standard error codes
+<span class="lineNum">     131 </span>            :  */
+<span class="lineNum">     132 </span>            : error_t get_fullcert_from_cert_cache(struct mCert *dest, uint8_t index )
+<span class="lineNum">     133 </span>            : {
+<span class="lineNum">     134 </span>            : error_t ret;
+<span class="lineNum">     135 </span>            : size_t len_to_read = sizeof(struct mCert);
+<span class="lineNum">     136 </span>            : uint16_t len_read;
+<span class="lineNum">     137 </span>            : uint16_t offset = OFFSET_OF(struct mCert_cache_entry, mCert);
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :         ret = sysvar_read(MCERT_CACHE_SYSVAR_ID_START+index, dest, offset,len_to_read,&amp;len_read,NULL);
+<span class="lineNum">     140 </span>            :         if (ret != ERR_OK || len_to_read != len_read) {
+<span class="lineNum">     141 </span>            :                 return ret;
+<span class="lineNum">     142 </span>            :         }
+<span class="lineNum">     143 </span>            : return ERR_OK; 
+<span class="lineNum">     144 </span>            : }
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            : /**
+<span class="lineNum">     147 </span>            :  * write mCert to store
+<span class="lineNum">     148 </span>            :  * @param - pcert is the mcert to store
+<span class="lineNum">     149 </span>            :  * @param - index is the cert_cache index to write
+<span class="lineNum">     150 </span>            :  * @param - valid indicate mCert valid or not
+<span class="lineNum">     151 </span>            :  * @return standard error codes
+<span class="lineNum">     152 </span>            :  */
+<span class="lineNum">     153 </span>            : error_t write_cert_to_mcert_cache(IN struct mCert *pcert, IN uint8_t index, IN uint8_t valid)
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span>            :         struct mCert_cache_entry cache_entry_local;
+<span class="lineNum">     156 </span>            :         cache_entry_local.valid = valid;
+<span class="lineNum">     157 </span>            :         cache_entry_local.mCert = *pcert;
+<span class="lineNum">     158 </span>            :         return sysvar_set(MCERT_CACHE_SYSVAR_ID_START+index, (const void *)&amp;cache_entry_local, sizeof(struct mCert_cache_entry));
+<span class="lineNum">     159 </span>            : }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            : error_t cert_cache_read_cert(struct mCert *cert, uint8_t slotno)
+<span class="lineNum">     162 </span>            : {
+<span class="lineNum">     163 </span>            :         return get_fullcert_from_cert_cache(cert, slotno);
+<span class="lineNum">     164 </span>            : }
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : error_t cert_cache_write_cert(struct mCert *cert, uint8_t slotno)
+<span class="lineNum">     167 </span>            : {
+<span class="lineNum">     168 </span>            :         return write_cert_to_mcert_cache(cert, slotno, CERT_ENTRY_VALID);
+<span class="lineNum">     169 </span>            : }
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span>            : error_t cert_cache_delete_cert(uint8_t slotno)
+<span class="lineNum">     172 </span>            : {
+<span class="lineNum">     173 </span>            :         return write_cert_to_mcert_cache(NULL, slotno, CERT_ENTRY_INVALID);
+<span class="lineNum">     174 </span>            : }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            : #endif
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : #ifdef LINUX
+<span class="lineNum">     179 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">     180 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">     181 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">     182 </span>            : #include &lt;mc_cache.h&gt;
+<span class="lineNum">     183 </span>            : #include &quot;assert.h&quot;
+<span class="lineNum">     184 </span>            : 
+<a name="185"><span class="lineNum">     185 </span>            : CertBuffer_cache_entry cert_cache[TOTAL_MCERT_SLOTS];</a>
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span><span class="lineCov">        189 : static void *get_cache_base_addr()</span>
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span><span class="lineCov">        189 :         return (void *)(cert_cache+1); //first one not used</span>
+<a name="190"><span class="lineNum">     190 </span>            : }</a>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 : error_t get_field_from_cert_cache(void *dest, uint16_t n, uint8_t index, uint16_t offset)</span>
+<span class="lineNum">     193 </span>            : {
+<span class="lineNum">     194 </span>            :         // locate entry in cache and return content of mCert field starting at offset
+<span class="lineNum">     195 </span>            :         // caller should allocate dest
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :         void *base = get_cache_base_addr();</span>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :         memcpy(dest, (void *)(base + index*sizeof(CertBuffer_cache_entry) + offset), n);</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :         return ERR_OK;</span>
+<a name="200"><span class="lineNum">     200 </span>            : }</a>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">        179 : error_t get_fullcert_from_cert_cache(CertBuffer *dest, uint8_t index )</span>
+<span class="lineNum">     203 </span>            : {
+<span class="lineNum">     204 </span>            :         // locate entry and return full mCert
+<span class="lineNum">     205 </span>            :         // caller should allocate dest
+<span class="lineNum">     206 </span><span class="lineCov">        179 :         void *base = get_cache_base_addr();</span>
+<span class="lineNum">     207 </span><span class="lineCov">        179 :         CertBuffer_cache_entry *pcert_flash = (CertBuffer_cache_entry *)(base + index*sizeof(CertBuffer_cache_entry));</span>
+<span class="lineNum">     208 </span><span class="lineCov">        179 :         memcpy((void *)dest, (void *)&amp;(pcert_flash-&gt;cb), sizeof(CertBuffer));</span>
+<span class="lineNum">     209 </span><span class="lineCov">        179 :         return ERR_OK;</span>
+<a name="210"><span class="lineNum">     210 </span>            : }</a>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">         10 : error_t write_cert_to_mcert_cache(IN CertBuffer *pcert, uint8_t index, uint8_t valid)</span>
+<span class="lineNum">     213 </span>            : {
+<span class="lineNum">     214 </span><span class="lineCov">         10 :         void *base = get_cache_base_addr();</span>
+<span class="lineNum">     215 </span><span class="lineCov">         10 :         uint8_t *valid_in_cache = base + index*sizeof(CertBuffer_cache_entry) + OFFSET_OF(CertBuffer_cache_entry, valid);</span>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span><span class="lineCov">         10 :         *valid_in_cache = valid;</span>
+<span class="lineNum">     218 </span><span class="lineCov">         10 :         if (valid == CERT_ENTRY_VALID) {</span>
+<span class="lineNum">     219 </span><span class="lineCov">          8 :                 CertBuffer *pcert_in_cache = base + index*sizeof(CertBuffer_cache_entry) + OFFSET_OF(CertBuffer_cache_entry, cb);</span>
+<span class="lineNum">     220 </span><span class="lineCov">          8 :                 *pcert_in_cache = *pcert;</span>
+<span class="lineNum">     221 </span>            :         }
+<span class="lineNum">     222 </span><span class="lineCov">         10 :         return ERR_OK;</span>
+<a name="223"><span class="lineNum">     223 </span>            : }</a>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">        152 : error_t cert_cache_read_cert(CertBuffer *cert, uint8_t slotno)</span>
+<span class="lineNum">     226 </span>            : {
+<span class="lineNum">     227 </span><span class="lineCov">        152 :         return get_fullcert_from_cert_cache(cert, slotno);</span>
+<a name="228"><span class="lineNum">     228 </span>            : }</a>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">          8 : error_t cert_cache_write_cert(CertBuffer *cert, uint8_t slotno)</span>
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span><span class="lineCov">          8 :         return write_cert_to_mcert_cache(cert, slotno, CERT_ENTRY_VALID);</span>
+<a name="233"><span class="lineNum">     233 </span>            : }</a>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">          2 : error_t cert_cache_delete_cert(uint8_t slotno)</span>
+<span class="lineNum">     236 </span>            : {
+<span class="lineNum">     237 </span><span class="lineCov">          2 :         return write_cert_to_mcert_cache(NULL, slotno, CERT_ENTRY_INVALID);</span>
+<span class="lineNum">     238 </span>            : }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

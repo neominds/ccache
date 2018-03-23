@@ -1,0 +1,956 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - test1.info - ver3.1/mc_cache.c</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">ver3.1</a> - mc_cache.c<span style="font-size: 80%;"> (source / <a href="mc_cache.c.func.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">test1.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">313</td>
+            <td class="headerCovTableEntry">373</td>
+            <td class="headerCovTableEntryMed">83.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2018-03-22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">29</td>
+            <td class="headerCovTableEntry">31</td>
+            <td class="headerCovTableEntryHi">93.5 %</td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* </a>
+<span class="lineNum">       2 </span>            :  * mc_cache.c
+<span class="lineNum">       3 </span>            :  * Copyright SilverSpring Networks 2018.
+<span class="lineNum">       4 </span>            :  * All rights reserved.
+<span class="lineNum">       5 </span>            :  *
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">       9 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      10 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      11 </span>            : #include &lt;malloc.h&gt;
+<span class="lineNum">      12 </span>            : #include &lt;mc_cache.h&gt;
+<span class="lineNum">      13 </span>            : #include &quot;assert.h&quot;
+<span class="lineNum">      14 </span>            : #include &lt;mc_cache_flash.h&gt;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : /*
+<span class="lineNum">      17 </span>            :    Cache structure
+<span class="lineNum">      18 </span>            :    Number of items in the cache is fixed by program. (#define). Currently set to 160
+<span class="lineNum">      19 </span>            :    Each item is of size of mCert (180 octets).
+<span class="lineNum">      20 </span>            :    |----0-----|----1-----|----2-----|----3-----|  ... ...  |----160-----|
+<span class="lineNum">      21 </span>            :    |    index |    root  |   cert   |   cert   |  ... ...  |    cert    |
+<span class="lineNum">      22 </span>            :    |----------|----------|----------|----------|  ... ...  |------------|
+<span class="lineNum">      23 </span>            :    Index structure (max 180 octets)
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : */
+<span class="lineNum">      26 </span>            : uint8_t to_delete_list[TOTAL_MCERT_SLOTS];
+<span class="lineNum">      27 </span>            : uint8_t to_delete_count = 0;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : static error_t cache_find_cert_no_lock(IN const CertBuffer *pCert, INOUT uint16_t *slot, IN uint16_t cmp_flags);
+<span class="lineNum">      30 </span>            : static error_t cache_delete_entry_no_lock(uint16_t slot_num);
+<span class="lineNum">      31 </span>            : static error_t mc_delete_pcert(CertBuffer *pcert, uint16_t slot_num);
+<span class="lineNum">      32 </span>            : static error_t mc_delete_pcert_one(uint16_t slot_num);
+<span class="lineNum">      33 </span>            : static enum mc_types get_mcert_type(CertBuffer *pCert);
+<span class="lineNum">      34 </span>            : static int is_issuer_of(CertBuffer *pcert1, CertBuffer *pcert2); 
+<span class="lineNum">      35 </span>            : static error_t cache_find_lock(INOUT CertBuffer *pcert, INOUT uint16_t *slot, struct compare_cert_parms *cmp);
+<span class="lineNum">      36 </span>            : static error_t cache_find_issuer_no_lock(IN const CertBuffer *src, OUT CertBuffer *pcert, OUT uint16_t *slot);
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : extern error_t CheckmCertValidity(CertBuffer *cert);
+<span class="lineNum">      39 </span>            : extern error_t mCertVerifySignature(CertBuffer *pcert, CertBuffer *issuer);
+<span class="lineNum">      40 </span>            : extern error_t mc_lock(void);
+<span class="lineNum">      41 </span>            : extern error_t mc_unlock(void);
+<span class="lineNum">      42 </span>            : extern uint8_t mc_mutex_init();
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : uint8_t used_list_head;
+<span class="lineNum">      45 </span>            : uint8_t free_list_head;
+<span class="lineNum">      46 </span>            : struct _mc_list used_list[TOTAL_MCERT_SLOTS];
+<a name="47"><span class="lineNum">      47 </span>            : struct _mc_list free_list[TOTAL_MCERT_SLOTS];</a>
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span><span class="lineCov">          3 : static uint8_t is_item_in_used_list(uint8_t item)</span>
+<span class="lineNum">      50 </span>            : {
+<span class="lineNum">      51 </span>            :         uint8_t i;
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">        170 :         for (i = 0; i &lt; TOTAL_MCERT_SLOTS; i++)</span>
+<span class="lineNum">      54 </span><span class="lineCov">        169 :                 if (used_list[i].cache_slot == item) return 1;</span>
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span><span class="lineCov">          1 :         return 0;</span>
+<a name="57"><span class="lineNum">      57 </span>            : }</a>
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineCov">         18 : static uint8_t get_unused_item_in_used_list()</span>
+<span class="lineNum">      60 </span>            : {
+<span class="lineNum">      61 </span>            :         uint8_t i;
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">         67 :         for (i = 0; i &lt; TOTAL_MCERT_SLOTS; i++)</span>
+<span class="lineNum">      64 </span><span class="lineCov">         67 :                 if (used_list[i].available) return i;</span>
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :         return 0xFF;</span>
+<a name="67"><span class="lineNum">      67 </span>            : }</a>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineCov">          2 : static uint8_t get_unused_item_in_free_list()</span>
+<span class="lineNum">      70 </span>            : {
+<span class="lineNum">      71 </span>            :         uint8_t i;
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineCov">          2 :         for (i = 0; i &lt; TOTAL_MCERT_SLOTS; i++)</span>
+<span class="lineNum">      74 </span><span class="lineCov">          2 :                 if (free_list[i].available) return i;</span>
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :         return 0xFF;</span>
+<a name="77"><span class="lineNum">      77 </span>            : }</a>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">         12 : static error_t delete_from_used_list(uint8_t slotno)</span>
+<span class="lineNum">      80 </span>            : {
+<span class="lineNum">      81 </span>            :         uint8_t prev, curr;
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span><span class="lineCov">         12 :         prev = curr = used_list_head;</span>
+<span class="lineNum">      84 </span><span class="lineCov">         31 :         while (curr != 0xFF) {</span>
+<span class="lineNum">      85 </span><span class="lineCov">         19 :                 if (used_list[curr].cache_slot == slotno) {</span>
+<span class="lineNum">      86 </span><span class="lineCov">         12 :                         used_list[prev].next = used_list[curr].next;</span>
+<span class="lineNum">      87 </span><span class="lineCov">         12 :                         used_list[curr].available = AVAILABLE;</span>
+<span class="lineNum">      88 </span><span class="lineCov">         12 :                         if (curr == used_list_head) </span>
+<span class="lineNum">      89 </span><span class="lineCov">          8 :                                 used_list_head = used_list[curr].next;</span>
+<span class="lineNum">      90 </span><span class="lineCov">         12 :                         return ERR_OK;</span>
+<span class="lineNum">      91 </span>            :                 }           
+<span class="lineNum">      92 </span><span class="lineCov">          7 :                 prev = curr;</span>
+<span class="lineNum">      93 </span><span class="lineCov">          7 :                 curr = used_list[curr].next;</span>
+<span class="lineNum">      94 </span>            :         }
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :         return ERR_MC_CACHE_NOTHING_TO_DELETE;            </span>
+<a name="96"><span class="lineNum">      96 </span>            : }</a>
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span><span class="lineCov">         18 : static error_t add_to_used_list(uint8_t slotno)</span>
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span>            :         uint8_t ul_index;
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span><span class="lineCov">         18 :         ul_index = get_unused_item_in_used_list();</span>
+<span class="lineNum">     103 </span><span class="lineCov">         18 :         if (ul_index == 0xFF)</span>
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_FULL;</span>
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">         18 :         used_list[ul_index].cache_slot = slotno;</span>
+<span class="lineNum">     107 </span><span class="lineCov">         18 :         used_list[ul_index].next = used_list_head;</span>
+<span class="lineNum">     108 </span><span class="lineCov">         18 :         used_list[ul_index].available = NOT_AVAILABLE;</span>
+<span class="lineNum">     109 </span><span class="lineCov">         18 :         used_list_head = ul_index;</span>
+<span class="lineNum">     110 </span><span class="lineCov">         18 :         return ERR_OK;</span>
+<a name="111"><span class="lineNum">     111 </span>            : }</a>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineCov">          7 : static error_t get_available_cache_slot(uint8_t *slotno)</span>
+<span class="lineNum">     114 </span>            : {
+<span class="lineNum">     115 </span><span class="lineCov">          7 :        if (free_list_head == 0xFF)</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_FULL;</span>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineCov">          7 :         *slotno = free_list[free_list_head].cache_slot;</span>
+<span class="lineNum">     119 </span><span class="lineCov">          7 :         free_list[free_list_head].available = AVAILABLE;</span>
+<span class="lineNum">     120 </span><span class="lineCov">          7 :         free_list_head = free_list[free_list_head].next;</span>
+<span class="lineNum">     121 </span><span class="lineCov">          7 :         return ERR_OK;</span>
+<a name="122"><span class="lineNum">     122 </span>            : }</a>
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineCov">          2 : static void add_to_free_list(uint8_t slotno)</span>
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span>            :         uint8_t fl_index;
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          2 :         fl_index = get_unused_item_in_free_list();</span>
+<span class="lineNum">     129 </span><span class="lineCov">          2 :         assert(fl_index != 0xFF);</span>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineCov">          2 :         free_list[fl_index].cache_slot = slotno;</span>
+<span class="lineNum">     132 </span><span class="lineCov">          2 :         free_list[fl_index].next = free_list_head;</span>
+<span class="lineNum">     133 </span><span class="lineCov">          2 :         free_list[fl_index].available = NOT_AVAILABLE;</span>
+<span class="lineNum">     134 </span><span class="lineCov">          2 :         free_list_head = fl_index;</span>
+<a name="135"><span class="lineNum">     135 </span><span class="lineCov">          2 : }</span></a>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 : static error_t delete_lru_from_cache()</span>
+<span class="lineNum">     138 </span>            : {
+<span class="lineNum">     139 </span>            :         uint8_t curr,prev, lru_slot;
+<span class="lineNum">     140 </span>            :         error_t ret;
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         curr = prev = used_list_head;</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :         while (curr != 0xFF) {</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :                 if (used_list[curr].cache_slot == ROOT_CERT_SLOT ){</span>
+<span class="lineNum">     145 </span>            :                         //LRU is in prev
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :                         lru_slot = used_list[prev].cache_slot;</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :                         ret = delete_from_used_list(lru_slot);</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :                         if (ret != ERR_OK) </span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :                                 return ret;</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :                         add_to_free_list(lru_slot);</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :                         //delete the item from flash
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :                         ret = cert_cache_delete_cert(lru_slot);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     155 </span>            :                 }
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :                 prev = curr;</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :                 curr = used_list[curr].next;</span>
+<span class="lineNum">     158 </span>            :         }
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :         return ERR_MC_CACHE_NOTHING_TO_DELETE;</span>
+<span class="lineNum">     160 </span>            : }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            : /**
+<span class="lineNum">     163 </span>            :  * compare two mcerts
+<span class="lineNum">     164 </span>            :  * @param - pCert1 is pointer to first Cert
+<span class="lineNum">     165 </span>            :  * @param - pCert1 is pointer to second Cert
+<span class="lineNum">     166 </span>            :  * @param - cmp specifies fields to compare and values to compare
+<a name="167"><span class="lineNum">     167 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     168 </span>            :  */
+<span class="lineNum">     169 </span><span class="lineCov">         61 : static error_t compare_mcerts(INOUT CertBuffer *pCert1, IN const CertBuffer *pCert2, IN struct compare_cert_parms *cmp)</span>
+<span class="lineNum">     170 </span>            : {
+<span class="lineNum">     171 </span><span class="lineCov">         61 :         if (cmp-&gt;bitmap == CERT_CMP_PARAM_ALL){</span>
+<span class="lineNum">     172 </span><span class="lineCov">         28 :                 if (!memcmp(pCert1-&gt;buffer + pCert1-&gt;dc.Certificate.idx,</span>
+<span class="lineNum">     173 </span>            :                             pCert2-&gt;buffer + pCert2-&gt;dc.Certificate.idx,
+<span class="lineNum">     174 </span><span class="lineCov">         28 :                             pCert1-&gt;dc.Certificate.len))</span>
+<span class="lineNum">     175 </span><span class="lineCov">          2 :                                 return ERR_OK;</span>
+<span class="lineNum">     176 </span>            :         }
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :         //CERT_CMP_PARAM_SUBJECT
+<span class="lineNum">     179 </span>            :         //CERT_CMP_PARAM_EXTN_POLICIES
+<span class="lineNum">     180 </span>            :         //CERT_CMP_PARAM_EXTN_SKID
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">         59 :         if (cmp-&gt;bitmap == CERT_CMP_PARM_MACADDR_BC) {</span>
+<span class="lineNum">     183 </span><span class="lineCov">          4 :                 if (pCert2-&gt;dc.AltNames.len != ALTNAME_LEN_MACADDR || pCert1-&gt;dc.AltNames.len != ALTNAME_LEN_MACADDR) </span>
+<span class="lineNum">     184 </span><span class="lineCov">          3 :                         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :                 if (!memcmp(pCert1-&gt;buffer + pCert1-&gt;dc.AltNames.idx, pCert2-&gt;buffer + pCert2-&gt;dc.AltNames.idx, pCert1-&gt;dc.AltNames.len))</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :                         return ERR_OK;</span>
+<span class="lineNum">     187 </span>            :         }
+<span class="lineNum">     188 </span><span class="lineCov">         55 :         if (cmp-&gt;bitmap == CERT_CMP_PARM_MACADDR_DL) {</span>
+<span class="lineNum">     189 </span>            :                 //TODO: differentiate between BC and DL
+<span class="lineNum">     190 </span><span class="lineCov">          4 :                 if (pCert2-&gt;dc.AltNames.len != ALTNAME_LEN_MACADDR || pCert1-&gt;dc.AltNames.len != ALTNAME_LEN_MACADDR) </span>
+<span class="lineNum">     191 </span><span class="lineCov">          3 :                         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     192 </span><span class="lineCov">          1 :                 if (!memcmp(pCert1-&gt;buffer + pCert1-&gt;dc.AltNames.idx, pCert2-&gt;buffer + pCert2-&gt;dc.AltNames.idx, pCert1-&gt;dc.AltNames.len))</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :                         return ERR_OK;</span>
+<span class="lineNum">     194 </span>            :         }
+<span class="lineNum">     195 </span><span class="lineCov">         51 :         if (cmp-&gt;bitmap == CERT_CMP_PARAM_ISSUER_AND_SERIAL) {</span>
+<span class="lineNum">     196 </span><span class="lineCov">         28 :                 if ( cmp-&gt;serial_bytes == pCert2-&gt;dc.serialNumber.len &amp;&amp;</span>
+<span class="lineNum">     197 </span><span class="lineCov">         11 :                      !memcmp(cmp-&gt;serial, pCert2-&gt;buffer + pCert2-&gt;dc.serialNumber.idx, cmp-&gt;serial_bytes) &amp;&amp;</span>
+<span class="lineNum">     198 </span><span class="lineCov">          3 :                      cmp-&gt;name_bytes == pCert2-&gt;dc.issuer.len &amp;&amp;</span>
+<span class="lineNum">     199 </span><span class="lineCov">          3 :                      !memcmp(cmp-&gt;name, pCert2-&gt;buffer + pCert2-&gt;dc.issuer.idx, cmp-&gt;name_bytes ) ) </span>
+<span class="lineNum">     200 </span><span class="lineCov">          3 :                         return ERR_OK;</span>
+<span class="lineNum">     201 </span>            :         }
+<span class="lineNum">     202 </span><span class="lineCov">         48 :         if (cmp-&gt;bitmap == CERT_CMP_PARAM_SUBJECT_AND_SKID) {</span>
+<span class="lineNum">     203 </span><span class="lineCov">         20 :                 if ( cmp-&gt;name_bytes == pCert2-&gt;dc.subject.len &amp;&amp;</span>
+<span class="lineNum">     204 </span><span class="lineCov">          8 :                      !memcmp(cmp-&gt;name, pCert2-&gt;buffer + pCert2-&gt;dc.subject.idx, cmp-&gt;name_bytes ) &amp;&amp; </span>
+<span class="lineNum">     205 </span><span class="lineCov">          2 :                      cmp-&gt;skid_bytes == pCert2-&gt;dc.SubjKeyID.len &amp;&amp;</span>
+<span class="lineNum">     206 </span><span class="lineCov">          2 :                      !memcmp(cmp-&gt;skid, pCert2-&gt;buffer + pCert2-&gt;dc.SubjKeyID.idx, cmp-&gt;skid_bytes ) ) </span>
+<span class="lineNum">     207 </span><span class="lineCov">          1 :                         return ERR_OK;</span>
+<span class="lineNum">     208 </span>            :         }
+<span class="lineNum">     209 </span><span class="lineCov">         47 :         if (cmp-&gt;bitmap == CERT_CMP_PARAM_OPERATOR_CERT) {</span>
+<span class="lineNum">     210 </span>            :                 //issuer must be root and Policies shall be &quot;AnyPolicy&quot;
+<span class="lineNum">     211 </span><span class="lineCov">         17 :                 if ( cmp-&gt;name_bytes == pCert2-&gt;dc.issuer.len &amp;&amp;</span>
+<span class="lineNum">     212 </span><span class="lineCov">          6 :                      !memcmp(cmp-&gt;name, pCert2-&gt;buffer + pCert2-&gt;dc.issuer.idx, cmp-&gt;name_bytes ) &amp;&amp; </span>
+<span class="lineNum">     213 </span><span class="lineCov">          5 :                      !memcmp(pCert2-&gt;buffer + pCert2-&gt;dc.Policies.idx, &quot;AnyPolicy&quot;,9) )</span>
+<span class="lineNum">     214 </span><span class="lineCov">          2 :                         return ERR_OK;</span>
+<span class="lineNum">     215 </span>            :         }
+<span class="lineNum">     216 </span><span class="lineCov">         45 :         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     217 </span>            : } 
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            : /**
+<span class="lineNum">     220 </span>            :  * init mcert cache
+<a name="221"><span class="lineNum">     221 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     222 </span>            :  */
+<span class="lineNum">     223 </span><span class="lineCov">          1 : error_t mc_cache_init()</span>
+<span class="lineNum">     224 </span>            : {
+<span class="lineNum">     225 </span>            :         int i;
+<span class="lineNum">     226 </span>            :         uint8_t ret;
+<span class="lineNum">     227 </span>            :         
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         ret = mc_mutex_init();</span>
+<span class="lineNum">     229 </span>            :         
+<span class="lineNum">     230 </span><span class="lineCov">          1 :         if (ret != ERR_OK)</span>
+<span class="lineNum">     231 </span>            :         {
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :                 MC_ERR(&quot;mcert cache mutex init failed. error %d\n&quot;,ret);</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_GEN_ERROR;</span>
+<span class="lineNum">     234 </span>            :         }
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            :         //Initialize used and free lists
+<span class="lineNum">     237 </span><span class="lineCov">          1 :         used_list_head = 0xFF;</span>
+<span class="lineNum">     238 </span><span class="lineCov">        162 :         for (i = 0; i&lt;TOTAL_MCERT_SLOTS; i++) {</span>
+<span class="lineNum">     239 </span><span class="lineCov">        161 :                 used_list[i].available = AVAILABLE;</span>
+<span class="lineNum">     240 </span>            :         }   
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            :         //add all except index and root slots to free_list
+<span class="lineNum">     243 </span><span class="lineCov">          1 :         free_list_head = 0;</span>
+<span class="lineNum">     244 </span><span class="lineCov">        160 :         for (i = 0; i &lt; TOTAL_MCERT_SLOTS-2; i++) {</span>
+<span class="lineNum">     245 </span><span class="lineCov">        159 :                 free_list[i].cache_slot =  CACHE_START_SLOT + i;</span>
+<span class="lineNum">     246 </span><span class="lineCov">        159 :                 free_list[i].available = NOT_AVAILABLE;</span>
+<span class="lineNum">     247 </span><span class="lineCov">        159 :                 free_list[i].next = i+1;</span>
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span><span class="lineCov">          1 :         free_list[i-1].next = 0xFF;</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :         //TODO: read entries from cache and add to used_list.
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">          1 :         return ERR_OK;</span>
+<span class="lineNum">     254 </span>            : }
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            : /**
+<span class="lineNum">     258 </span>            :  * set given slotno as MRU (first in used_list)
+<a name="259"><span class="lineNum">     259 </span>            :  * @param - slotno is cache slot to become mru</a>
+<span class="lineNum">     260 </span>            :  */
+<span class="lineNum">     261 </span><span class="lineCov">         10 : static error_t set_slot_as_mru(uint8_t cache_slotno)</span>
+<span class="lineNum">     262 </span>            : {
+<span class="lineNum">     263 </span>            :         error_t ret;
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">         10 :         if (cache_slotno == ROOT_CERT_SLOT)</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :                 return ERR_OK; </span>
+<span class="lineNum">     267 </span><span class="lineCov">         10 :         ret = delete_from_used_list(cache_slotno);</span>
+<span class="lineNum">     268 </span><span class="lineCov">         10 :         if (ret == ERR_OK)</span>
+<span class="lineNum">     269 </span><span class="lineCov">         10 :                 ret = add_to_used_list(cache_slotno);</span>
+<span class="lineNum">     270 </span><span class="lineCov">         10 :         return ret;</span>
+<span class="lineNum">     271 </span>            : }
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : /**
+<span class="lineNum">     275 </span>            :  * find mcert in cache
+<span class="lineNum">     276 </span>            :  * @param - pCert is the mcert to find
+<span class="lineNum">     277 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<span class="lineNum">     278 </span>            :  * @return standard error codes
+<a name="279"><span class="lineNum">     279 </span>            :  */</a>
+<span class="lineNum">     280 </span>            : //API error_t cache_find_cert(IN const CertBuffer *pCert, INOUT uint16_t *slot){
+<span class="lineNum">     281 </span><span class="lineCov">          2 : API error_t cache_find_cert(IN const CertBuffer *pCert, INOUT uint16_t *slot){</span>
+<span class="lineNum">     282 </span><span class="lineCov">          2 :         error_t ret = ERR_OK;</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineCov">          2 :         assert(pCert &amp;&amp; slot);</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineCov">          2 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     287 </span><span class="lineCov">          2 :         ret = cache_find_cert_no_lock(pCert,slot, CERT_CMP_PARAM_ALL);</span>
+<span class="lineNum">     288 </span><span class="lineCov">          2 :         if (ret != ERR_OK) {</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :                 mc_unlock();</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :                 return ret;</span>
+<span class="lineNum">     291 </span>            :         }
+<span class="lineNum">     292 </span><span class="lineCov">          1 :         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineCov">          1 :         return ret;</span>
+<span class="lineNum">     295 </span>            : }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : /**
+<span class="lineNum">     298 </span>            :  * find mcert in cache when mutex lock is already held
+<span class="lineNum">     299 </span>            :  * @param - pCert is the mcert to find
+<span class="lineNum">     300 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<span class="lineNum">     301 </span>            :  * @param - cmp_flags indicate which fields of pCert to compare
+<span class="lineNum">     302 </span>            :  * @return standard error codes
+<a name="303"><span class="lineNum">     303 </span>            :  */</a>
+<span class="lineNum">     304 </span>            : //static error_t cache_find_cert_no_lock(IN const CertBuffer *pCert, INOUT uint16_t *slot, IN uint16_t cmp_flags)
+<span class="lineNum">     305 </span><span class="lineCov">         10 : static error_t cache_find_cert_no_lock(IN const CertBuffer *pCert, INOUT uint16_t *slot, IN uint16_t cmp_flags)</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     308 </span>            :         uint8_t curr;
+<span class="lineNum">     309 </span>            :         error_t ret;
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span>            :         //CertBuffer cert_local;
+<span class="lineNum">     312 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span><span class="lineCov">         10 :         if (used_list_head == 0xFF)</span>
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     316 </span>            :         
+<span class="lineNum">     317 </span><span class="lineCov">         10 :         cmp.bitmap = cmp_flags;</span>
+<span class="lineNum">     318 </span><span class="lineCov">         10 :         if (*slot &lt; ROOT_CERT_SLOT) *slot = ROOT_CERT_SLOT;</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">         10 :         curr = used_list_head;</span>
+<span class="lineNum">     321 </span><span class="lineCov">         46 :         while (curr != 0xFF) {  </span>
+<span class="lineNum">     322 </span><span class="lineCov">         28 :                 ret = cert_cache_read_cert(&amp;cert_local, used_list[curr].cache_slot);</span>
+<span class="lineNum">     323 </span><span class="lineCov">         28 :                 if (ret != ERR_OK) </span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     325 </span><span class="lineCov">         28 :                 if (used_list[curr].cache_slot &lt; *slot ) continue;</span>
+<span class="lineNum">     326 </span><span class="lineCov">         28 :                 if (ERR_OK == compare_mcerts((CertBuffer *)pCert, &amp;cert_local, &amp;cmp)){</span>
+<span class="lineNum">     327 </span><span class="lineCov">          2 :                         *slot = used_list[curr].cache_slot;</span>
+<span class="lineNum">     328 </span>            :                         //TODO: find flag to determine to set to MRU or not
+<span class="lineNum">     329 </span><span class="lineCov">          2 :                         set_slot_as_mru(*slot);</span>
+<span class="lineNum">     330 </span><span class="lineCov">          2 :                         return ERR_OK;</span>
+<span class="lineNum">     331 </span>            :                 }
+<span class="lineNum">     332 </span><span class="lineCov">         26 :                 curr = used_list[curr].next;</span>
+<span class="lineNum">     333 </span>            :         }
+<span class="lineNum">     334 </span><span class="lineCov">          8 :         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<a name="335"><span class="lineNum">     335 </span>            : }</a>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          4 : API error_t cache_find_by_issuer_and_serial(IN const uint8_t *issuer, IN unsigned issuer_bytes, IN const uint8_t *serial, IN unsigned serial_bytes,</span>
+<span class="lineNum">     338 </span>            :                                  INOUT struct CertBuffer *pcert, INOUT uint16_t *slot) 
+<span class="lineNum">     339 </span>            : {
+<span class="lineNum">     340 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     341 </span><span class="lineCov">          4 :         assert(issuer &amp;&amp; serial &amp;&amp; pcert);</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineCov">          4 :         cmp.bitmap = CERT_CMP_PARAM_ISSUER_AND_SERIAL;</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          4 :         cmp.serial_bytes = serial_bytes;</span>
+<span class="lineNum">     346 </span><span class="lineCov">          4 :         cmp.serial = (uint8_t *)serial;</span>
+<span class="lineNum">     347 </span><span class="lineCov">          4 :         cmp.name_bytes = issuer_bytes;</span>
+<span class="lineNum">     348 </span><span class="lineCov">          4 :         cmp.name = (uint8_t *)issuer;</span>
+<span class="lineNum">     349 </span><span class="lineCov">          4 :         return cache_find_lock(pcert, slot, &amp;cmp);</span>
+<a name="350"><span class="lineNum">     350 </span>            : }</a>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineCov">          3 : API error_t cache_find_by_subject_and_SKID(const uint8_t *subject, unsigned subject_bytes, const uint8_t *skid, unsigned skid_bytes, CertBuffer *pcert, INOUT uint16_t *slot)</span>
+<span class="lineNum">     353 </span>            : {
+<span class="lineNum">     354 </span>            : // SKID stands for Subject Key ID.  If skid_bytes is zero, search only by subject.
+<span class="lineNum">     355 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     356 </span><span class="lineCov">          3 :         assert(subject &amp;&amp; skid &amp;&amp; pcert);</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineCov">          3 :         cmp.bitmap = CERT_CMP_PARAM_SUBJECT_AND_SKID;</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineCov">          3 :         cmp.name_bytes = subject_bytes;</span>
+<span class="lineNum">     361 </span><span class="lineCov">          3 :         cmp.name = (uint8_t *)subject;</span>
+<span class="lineNum">     362 </span><span class="lineCov">          3 :         cmp.skid_bytes = skid_bytes;</span>
+<span class="lineNum">     363 </span><span class="lineCov">          3 :         cmp.skid = (uint8_t *)skid;</span>
+<span class="lineNum">     364 </span><span class="lineCov">          3 :         return cache_find_lock(pcert, slot, &amp;cmp);</span>
+<a name="365"><span class="lineNum">     365 </span>            : }</a>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineCov">          3 : API error_t cache_find_next_operator_cert(CertBuffer *pcert, INOUT uint16_t *slot)</span>
+<span class="lineNum">     368 </span>            : {
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            : //TODO
+<span class="lineNum">     371 </span>            : // issuer == root and Policies == &quot;AnyPolicy&quot;
+<span class="lineNum">     372 </span>            : // An Operator cert is issued by the root and has the “AnyPolicy” value in the Policies extension.  
+<span class="lineNum">     373 </span>            : // Find the next one starting at MRU (if *slot is zero) or starting at *slot if not.
+<span class="lineNum">     374 </span>            : //
+<span class="lineNum">     375 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     376 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     377 </span><span class="lineCov">          3 :         assert(pcert);</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">          3 :         cmp.bitmap = CERT_CMP_PARAM_OPERATOR_CERT;</span>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            :         //TODO: get root cert and fill below two fields 
+<span class="lineNum">     382 </span><span class="lineCov">          3 :         cert_cache_read_cert(&amp;cert_local, ROOT_CERT_SLOT);</span>
+<span class="lineNum">     383 </span><span class="lineCov">          3 :         cmp.name_bytes = cert_local.dc.subject.len;</span>
+<span class="lineNum">     384 </span><span class="lineCov">          3 :         cmp.name = (uint8_t *)(cert_local.buffer + cert_local.dc.subject.idx);</span>
+<span class="lineNum">     385 </span><span class="lineCov">          3 :         return cache_find_lock(pcert, slot, &amp;cmp);</span>
+<span class="lineNum">     386 </span>            : }
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span>            : /**
+<span class="lineNum">     389 </span>            :  * find mcert in cache by subject ID (MAC address)
+<span class="lineNum">     390 </span>            :  * for Birth certificates, subject ID type is 1
+<span class="lineNum">     391 </span>            :  * @param - MAC_addr is MAC address to search for
+<span class="lineNum">     392 </span>            :  * @param - pcert is the mcert to find
+<span class="lineNum">     393 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<a name="394"><span class="lineNum">     394 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     395 </span>            :  */
+<span class="lineNum">     396 </span><span class="lineCov">          2 : API error_t cache_find_BC_by_MAC_address(const uint8_t *MAC_addr, CertBuffer *pcert, uint16_t *slot)</span>
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span>            :         //MAC address is in SubjectID. In EUI64 format - assuming first 8 of 16 octets.
+<span class="lineNum">     399 </span>            :         //Subject ID type = 1 (NIC EUI64 identifier), Subject ID len = 8
+<span class="lineNum">     400 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span><span class="lineCov">          2 :         assert(MAC_addr &amp;&amp; pcert &amp;&amp; slot);      </span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineCov">          2 :         cmp.bitmap = CERT_CMP_PARM_MACADDR_BC;</span>
+<span class="lineNum">     405 </span>            :         //Look at pcert-&gt;buffer + pcert-&gt;dc.AltNames.idx for 8 octets after making sure that pcert-&gt;buffer + pcert-&gt;dc.AltNames.len is 8.   
+<span class="lineNum">     406 </span><span class="lineCov">          2 :         memcpy(pcert-&gt;buffer + pcert-&gt;dc.AltNames.idx, MAC_addr, ALTNAME_LEN_MACADDR);</span>
+<span class="lineNum">     407 </span>            :         //memcpy(pcert-&gt;mc_subject_id, MAC_addr,SUBJECTID_LEN_MACADDR);
+<span class="lineNum">     408 </span><span class="lineCov">          2 :         pcert-&gt;dc.AltNames.len = ALTNAME_LEN_MACADDR;</span>
+<span class="lineNum">     409 </span>            :         //pcert-&gt;mc_subject_id_len = SUBJECTID_LEN_MACADDR;
+<span class="lineNum">     410 </span>            :         //pcert-&gt;mc_subject_type = MC_SUBJECT_TYPE_MACADDR_BC;
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span><span class="lineCov">          2 :         return cache_find_lock(pcert,slot,&amp;cmp);</span>
+<span class="lineNum">     413 </span>            : }
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            : /**
+<span class="lineNum">     416 </span>            :  * find mcert in cache by subject ID (MAC address)
+<span class="lineNum">     417 </span>            :  * for DL certificates, subject ID type is 8
+<span class="lineNum">     418 </span>            :  * @param - MAC_addr is MAC address to search for
+<span class="lineNum">     419 </span>            :  * @param - pcert is the mcert to find
+<span class="lineNum">     420 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<a name="421"><span class="lineNum">     421 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     422 </span>            :  */
+<span class="lineNum">     423 </span><span class="lineCov">          2 : API error_t cache_find_DL_by_MAC_address(const uint8_t *MAC_addr, CertBuffer *pcert, uint16_t *slot)</span>
+<span class="lineNum">     424 </span>            : {
+<span class="lineNum">     425 </span>            :         //MAC address is in SubjectID. In EUI64 format - assuming first 8 of 16 octets.
+<span class="lineNum">     426 </span>            :         //Subject ID type = 8 (NIC EUI64 identifier), Subject ID len = 8
+<span class="lineNum">     427 </span>            :         struct compare_cert_parms cmp;
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">          2 :         assert(MAC_addr &amp;&amp; pcert &amp;&amp; slot);      </span>
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span><span class="lineCov">          2 :         cmp.bitmap = CERT_CMP_PARM_MACADDR_DL;</span>
+<span class="lineNum">     432 </span>            :         //memcpy(pcert-&gt;mc_subject_id, MAC_addr, SUBJECTID_LEN_MACADDR);
+<span class="lineNum">     433 </span><span class="lineCov">          2 :         memcpy(pcert-&gt;buffer + pcert-&gt;dc.AltNames.idx, MAC_addr, ALTNAME_LEN_MACADDR);</span>
+<span class="lineNum">     434 </span><span class="lineCov">          2 :         pcert-&gt;dc.AltNames.len = ALTNAME_LEN_MACADDR;</span>
+<span class="lineNum">     435 </span>            :         //pcert-&gt;mc_subject_id_len = SUBJECTID_LEN_MACADDR;
+<span class="lineNum">     436 </span>            :         //pcert-&gt;mc_subject_type = MC_SUBJECT_TYPE_MACADDR_DL;
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span><span class="lineCov">          2 :         return cache_find_lock(pcert,slot,&amp;cmp);</span>
+<span class="lineNum">     439 </span>            : }
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span>            : /**
+<span class="lineNum">     442 </span>            :  * find mcert in cache; caller shall not hold mutex lock 
+<span class="lineNum">     443 </span>            :  * @param - pcert is the mcert to find
+<span class="lineNum">     444 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<span class="lineNum">     445 </span>            :  * @param - cmp is bitmap of fields to compare
+<a name="446"><span class="lineNum">     446 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     447 </span>            :  */
+<span class="lineNum">     448 </span><span class="lineCov">         14 : static error_t cache_find_lock(INOUT CertBuffer *pcert, INOUT uint16_t *slot, struct compare_cert_parms *cmp)</span>
+<span class="lineNum">     449 </span>            : {
+<span class="lineNum">     450 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     451 </span>            :         uint8_t curr;
+<span class="lineNum">     452 </span>            :         error_t ret;
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineCov">         14 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     455 </span>            :         
+<span class="lineNum">     456 </span><span class="lineCov">         14 :         if (*slot != 0) {</span>
+<span class="lineNum">     457 </span>            :                 //skip entries in used_list until and including given slotno
+<span class="lineNum">     458 </span>            :                 //when *slot is non-zero, caller is trying 'get next matching mru'.
+<span class="lineNum">     459 </span><span class="lineCov">          1 :                 curr = used_list_head;</span>
+<span class="lineNum">     460 </span><span class="lineCov">          2 :                 while (curr != 0xFF){</span>
+<span class="lineNum">     461 </span><span class="lineCov">          1 :                         if (used_list[curr].cache_slot == *slot){</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :                                 curr = used_list[curr].next;</span>
+<span class="lineNum">     463 </span><span class="lineCov">          1 :                                 break;</span>
+<span class="lineNum">     464 </span>            :                         }
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :                         curr = used_list[curr].next;</span>
+<span class="lineNum">     466 </span>            :                 }
+<span class="lineNum">     467 </span><span class="lineCov">          1 :                 if (curr == 0xFF)       </span>
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :                         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     469 </span>            :         }
+<span class="lineNum">     470 </span>            :         else
+<span class="lineNum">     471 </span><span class="lineCov">         13 :                 curr = used_list_head;</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineCov">         14 :         if (*slot &lt; ROOT_CERT_SLOT) *slot = ROOT_CERT_SLOT;</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">         53 :         while (curr != 0xFF) {</span>
+<span class="lineNum">     476 </span><span class="lineCov">         33 :                 ret = cert_cache_read_cert(&amp;cert_local, used_list[curr].cache_slot);</span>
+<span class="lineNum">     477 </span><span class="lineCov">         33 :                 if (ret != ERR_OK) </span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     479 </span><span class="lineCov">         33 :                 if (ERR_OK == compare_mcerts((CertBuffer *)pcert, &amp;cert_local, cmp)){</span>
+<span class="lineNum">     480 </span><span class="lineCov">          8 :                         *slot = used_list[curr].cache_slot;</span>
+<span class="lineNum">     481 </span><span class="lineCov">          8 :                         ret = cert_cache_read_cert(pcert, *slot);</span>
+<span class="lineNum">     482 </span><span class="lineCov">          8 :                         if (ret != ERR_OK) </span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :                                 return ret;</span>
+<span class="lineNum">     484 </span><span class="lineCov">          8 :                         set_slot_as_mru(*slot);</span>
+<span class="lineNum">     485 </span><span class="lineCov">          8 :                         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     486 </span><span class="lineCov">          8 :                         return ERR_OK;</span>
+<span class="lineNum">     487 </span>            :                 }
+<span class="lineNum">     488 </span><span class="lineCov">         25 :         curr = used_list[curr].next;</span>
+<span class="lineNum">     489 </span>            :         }       
+<span class="lineNum">     490 </span><span class="lineCov">          6 :         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     491 </span><span class="lineCov">          6 :         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            : }
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span>            : /**
+<span class="lineNum">     496 </span>            :  * find mcert in cache by slot number
+<span class="lineNum">     497 </span>            :  * @param - slot_num is the slot number to find
+<span class="lineNum">     498 </span>            :  * @param - pcert is the mcert to find
+<span class="lineNum">     499 </span>            :  * @param - slot is index of mcert cache to return; also slotno to start to search from
+<a name="500"><span class="lineNum">     500 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     501 </span>            :  */
+<span class="lineNum">     502 </span><span class="lineCov">          2 : API error_t cache_find_by_slot_number(uint16_t slot_num, CertBuffer *pcert)</span>
+<span class="lineNum">     503 </span>            : {
+<span class="lineNum">     504 </span>            :         //verify that slot is a valid entry in used list.
+<span class="lineNum">     505 </span><span class="lineCov">          2 :         uint8_t valid = 0;</span>
+<span class="lineNum">     506 </span>            :         uint8_t curr;
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span><span class="lineCov">          2 :         assert(pcert);  </span>
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            :         //check if slot_num is present in used_list
+<span class="lineNum">     511 </span><span class="lineCov">          2 :         curr = used_list_head;</span>
+<span class="lineNum">     512 </span><span class="lineCov">          7 :         while( curr != 0xFF) {</span>
+<span class="lineNum">     513 </span><span class="lineCov">          4 :                 if(slot_num == used_list[curr].cache_slot) {</span>
+<span class="lineNum">     514 </span><span class="lineCov">          1 :                         valid = 1;</span>
+<span class="lineNum">     515 </span><span class="lineCov">          1 :                         break;</span>
+<span class="lineNum">     516 </span>            :                 }
+<span class="lineNum">     517 </span><span class="lineCov">          3 :                 curr = used_list[curr].next;</span>
+<span class="lineNum">     518 </span>            :         }
+<span class="lineNum">     519 </span><span class="lineCov">          2 :         if (!valid) return ERR_MC_CACHE_INVALID_SLOT_TOFIND;</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span>            :         //*slot = slot_num;
+<span class="lineNum">     522 </span><span class="lineCov">          1 :         return cert_cache_read_cert(pcert, slot_num);</span>
+<span class="lineNum">     523 </span>            : }
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span>            : /**
+<span class="lineNum">     526 </span>            :  * insert mcert to cache
+<span class="lineNum">     527 </span>            :  * @param - pcert is the mcert to include
+<span class="lineNum">     528 </span>            :  * @param - slot is index of mcert cache to return
+<a name="529"><span class="lineNum">     529 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     530 </span>            :  */
+<span class="lineNum">     531 </span><span class="lineCov">          9 : API error_t cache_insert_cert(IN CertBuffer *pcert, OUT uint16_t *slot) </span>
+<span class="lineNum">     532 </span>            : {
+<span class="lineNum">     533 </span><span class="lineCov">          9 :         uint16_t fslot = 0, issuer_slot;</span>
+<span class="lineNum">     534 </span>            :         error_t ret;
+<span class="lineNum">     535 </span>            :         CertBuffer issuer;
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineCov">          9 :         assert(pcert &amp;&amp; slot);  </span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span>            :         /* The root cert will always be the first cert inserted into an empty cache.*/
+<span class="lineNum">     540 </span><span class="lineCov">          9 :         if (used_list_head == 0xFF &amp;&amp; get_mcert_type(pcert) != MCERT_TYPE_ROOT)</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_NO_ROOT_MCERT;</span>
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span>            :         //verify given certificate before insert
+<span class="lineNum">     544 </span><span class="lineCov">          9 :         if (ERR_OK != CheckmCertValidity(pcert)) {</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_CERT_EXPIRED;</span>
+<span class="lineNum">     546 </span>            :         }
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineCov">          9 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineCov">          9 :         if (get_mcert_type(pcert) == MCERT_TYPE_ROOT ) {</span>
+<span class="lineNum">     551 </span><span class="lineCov">          1 :                 if (used_list_head != 0xFF ) {</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :                         mc_unlock();</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :                         return ERR_MC_CACHE_NOT_EMPTY;</span>
+<span class="lineNum">     554 </span>            :                 }
+<span class="lineNum">     555 </span>            :                 //check signature
+<span class="lineNum">     556 </span><span class="lineCov">          1 :                 ret = mCertVerifySignature(pcert,pcert);</span>
+<span class="lineNum">     557 </span><span class="lineCov">          1 :                 if (ret != ERR_OK) {</span>
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :                         mc_unlock();</span>
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :                         return ERR_MC_CACHE_CERT_SIGN_INVALID;</span>
+<span class="lineNum">     560 </span>            :                 }
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            :                 //write_cert_to_mcert_cache(pcert, ROOT_CERT_SLOT, CERT_ENTRY_VALID);
+<span class="lineNum">     563 </span><span class="lineCov">          1 :                 ret = cert_cache_write_cert(pcert, ROOT_CERT_SLOT);</span>
+<span class="lineNum">     564 </span><span class="lineCov">          1 :                 if (ret != ERR_OK) {</span>
+<span class="lineNum">     565 </span>            :                         //TODO: handle ERR;
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     567 </span>            :                 }
+<span class="lineNum">     568 </span><span class="lineCov">          1 :                 *slot = ROOT_CERT_SLOT;</span>
+<span class="lineNum">     569 </span><span class="lineCov">          1 :                 add_to_used_list(*slot);</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :                 if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     571 </span><span class="lineCov">          1 :                 return ERR_OK;</span>
+<span class="lineNum">     572 </span>            :         }
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span><span class="lineCov">          8 :         if (cache_find_cert_no_lock(pcert,&amp;fslot,CERT_CMP_PARAM_ALL) == ERR_OK){</span>
+<span class="lineNum">     575 </span><span class="lineCov">          1 :                 if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     576 </span>            :                 //TODO: a side-effect of this is pcert getting set as MRU. use another find function ?
+<span class="lineNum">     577 </span><span class="lineCov">          1 :                 return ERR_MC_CACHE_ALREADY_EXIST;</span>
+<span class="lineNum">     578 </span>            :         }
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">          7 :         issuer_slot = 0;</span>
+<span class="lineNum">     581 </span><span class="lineCov">          7 :         if (ERR_OK != cache_find_issuer_no_lock(pcert,&amp;issuer,&amp;issuer_slot)) {</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                 mc_unlock();</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_CERT_NO_ISSUER;</span>
+<span class="lineNum">     584 </span>            :         }
+<span class="lineNum">     585 </span><span class="lineCov">          7 :         ret = mCertVerifySignature(pcert,&amp;issuer);</span>
+<span class="lineNum">     586 </span><span class="lineCov">          7 :         if (ret != ERR_OK) {</span>
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :                 mc_unlock();</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_CERT_SIGN_INVALID;</span>
+<span class="lineNum">     589 </span>            :         }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            :         //insert as MRU
+<span class="lineNum">     592 </span><span class="lineCov">          7 :         ret = get_available_cache_slot((uint8_t *)slot); //TODO fixme</span>
+<span class="lineNum">     593 </span><span class="lineCov">          7 :         if (ret == ERR_MC_CACHE_FULL) {</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :                 delete_lru_from_cache();</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :                 get_available_cache_slot((uint8_t *)slot); //TODO fixme </span>
+<span class="lineNum">     596 </span>            :         }
+<span class="lineNum">     597 </span><span class="lineCov">          7 :         add_to_used_list(*slot);</span>
+<span class="lineNum">     598 </span><span class="lineCov">          7 :         ret = cert_cache_write_cert(pcert, *slot);</span>
+<span class="lineNum">     599 </span><span class="lineCov">          7 :         if (ret != ERR_OK) {</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                 mc_unlock();</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :                 return ret;</span>
+<span class="lineNum">     602 </span>            :                 //TODO
+<span class="lineNum">     603 </span>            :         }
+<span class="lineNum">     604 </span><span class="lineCov">          7 :         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     605 </span><span class="lineCov">          7 :         return ERR_OK;</span>
+<span class="lineNum">     606 </span>            : }
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span>            : /**
+<span class="lineNum">     609 </span>            :  * delete mcert from cache
+<span class="lineNum">     610 </span>            :  * @param - slot_num is the slot number to delete
+<a name="611"><span class="lineNum">     611 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     612 </span>            :  */
+<span class="lineNum">     613 </span><span class="lineCov">          5 : API error_t cache_delete_entry(uint16_t slot_num) </span>
+<span class="lineNum">     614 </span>            : {
+<span class="lineNum">     615 </span><span class="lineCov">          5 :         error_t ret = ERR_OK;</span>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineCov">          5 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     618 </span><span class="lineCov">          5 :         ret = cache_delete_entry_no_lock(slot_num);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          5 :         if (ret != ERR_OK) {</span>
+<span class="lineNum">     620 </span><span class="lineCov">          3 :                 mc_unlock();</span>
+<span class="lineNum">     621 </span><span class="lineCov">          3 :                 return ret;</span>
+<span class="lineNum">     622 </span>            :         }
+<span class="lineNum">     623 </span><span class="lineCov">          2 :         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">          2 :         return ret;</span>
+<span class="lineNum">     626 </span>            : }
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span>            : /**
+<span class="lineNum">     629 </span>            :  * add mcert to delete and all its children to deletelist, then invoke actual delete
+<span class="lineNum">     630 </span>            :  * @param - slot_num is the slot number to delete
+<a name="631"><span class="lineNum">     631 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     632 </span>            :  */
+<span class="lineNum">     633 </span><span class="lineCov">          5 : static error_t cache_delete_entry_no_lock(uint16_t slot_num) </span>
+<span class="lineNum">     634 </span>            : {
+<span class="lineNum">     635 </span>            :         int i;
+<span class="lineNum">     636 </span><span class="lineCov">          5 :         error_t ret = ERR_OK;</span>
+<span class="lineNum">     637 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     638 </span>            : 
+<span class="lineNum">     639 </span><span class="lineCov">          5 :         if (slot_num == 0) return ERR_MC_CACHE_NOTHING_TO_DELETE;</span>
+<span class="lineNum">     640 </span><span class="lineCov">          3 :         if (slot_num == 1) return ERR_MC_CACHE_CANT_DELETE_ROOTCERT;</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            :         //make sure entry exists in used list
+<span class="lineNum">     643 </span><span class="lineCov">          3 :         if (!is_item_in_used_list(slot_num))</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :                 return ERR_MC_CACHE_NOTHING_TO_DELETE;</span>
+<span class="lineNum">     645 </span>            :         
+<span class="lineNum">     646 </span><span class="lineCov">          2 :         ret = cert_cache_read_cert(&amp;cert_local, slot_num);</span>
+<span class="lineNum">     647 </span><span class="lineCov">          2 :         if (ret != ERR_OK) {</span>
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :                 return ERR_MC_CACHE_NOTHING_TO_DELETE;</span>
+<span class="lineNum">     649 </span>            :                 //TODO: handle error?
+<span class="lineNum">     650 </span>            :         }
+<span class="lineNum">     651 </span><span class="lineCov">          2 :         ret = mc_delete_pcert(&amp;cert_local,slot_num);</span>
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span>            :         //perform actual deletion, right to left
+<span class="lineNum">     654 </span><span class="lineCov">          4 :         for (i = to_delete_count; i  &amp;&amp; ret == ERR_OK; i--)</span>
+<span class="lineNum">     655 </span><span class="lineCov">          2 :                 ret = mc_delete_pcert_one(to_delete_list[i-1]);</span>
+<span class="lineNum">     656 </span><span class="lineCov">          2 :         to_delete_count = 0;</span>
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span><span class="lineCov">          2 :         return ret;</span>
+<span class="lineNum">     659 </span>            : }
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : /**
+<span class="lineNum">     662 </span>            :  * add mcert to delete and all its children to deletelist
+<span class="lineNum">     663 </span>            :  * @param - slot_num is the slot number to delete
+<span class="lineNum">     664 </span>            :  * @return standard error codes
+<a name="665"><span class="lineNum">     665 </span>            :  */</a>
+<span class="lineNum">     666 </span>            : //static error_t mc_delete_pcert(CertBuffer *pcert, uint16_t slot_num) 
+<span class="lineNum">     667 </span><span class="lineCov">          2 : static error_t mc_delete_pcert(CertBuffer *pcert, uint16_t slot_num) </span>
+<span class="lineNum">     668 </span>            : {
+<span class="lineNum">     669 </span>            :         CertBuffer cert_local;
+<span class="lineNum">     670 </span>            :         uint8_t curr;
+<span class="lineNum">     671 </span>            :         error_t ret;
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            :         //MC_DEBUG(&quot;mc_delete_pcert(%x,%03u)\n&quot;, pcert-&gt;mc_cert_id, slot_num);
+<span class="lineNum">     674 </span><span class="lineCov">          2 :         MC_DEBUG(&quot;mc_delete_pcert(%lx,%03u)\n&quot;, *((uint64_t *)(pcert-&gt;buffer + pcert-&gt;dc.serialNumber.idx)), slot_num);</span>
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            :         //walk through used_list to find children
+<span class="lineNum">     677 </span><span class="lineCov">          2 :         curr = used_list_head;</span>
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span><span class="lineCov">         13 :         while (curr != 0xFF ) {</span>
+<span class="lineNum">     680 </span><span class="lineCov">          9 :                 ret = cert_cache_read_cert(&amp;cert_local, used_list[curr].cache_slot);</span>
+<span class="lineNum">     681 </span>            :                 if (ret != ERR_OK) {
+<span class="lineNum">     682 </span>            :                         //handle error?
+<span class="lineNum">     683 </span>            :                 }
+<span class="lineNum">     684 </span>            :                 //skip if mcert_local is same as pcert
+<span class="lineNum">     685 </span>            :                 //if (!memcmp(pcert-&gt;mc_public_key, cert_local.mc_public_key, sizeof(pcert-&gt;mc_public_key))) {
+<span class="lineNum">     686 </span>            :                 //TODO: compare issuer too
+<span class="lineNum">     687 </span><span class="lineCov">          9 :                 if (!memcmp(pcert-&gt;buffer + pcert-&gt;dc.serialNumber.idx, cert_local.buffer + cert_local.dc.serialNumber.idx, pcert-&gt;dc.serialNumber.len)) {</span>
+<span class="lineNum">     688 </span><span class="lineCov">          2 :                                 curr = used_list[curr].next;</span>
+<span class="lineNum">     689 </span><span class="lineCov">          2 :                                 continue;</span>
+<span class="lineNum">     690 </span>            :                 }
+<span class="lineNum">     691 </span><span class="lineCov">          7 :                 if (is_issuer_of(pcert, &amp;cert_local)){</span>
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :                         ret = mc_delete_pcert(&amp;cert_local, (uint16_t)used_list[curr].cache_slot); //TODO fixme</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :                         if (ret != ERR_OK)</span>
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :                                 return ret;</span>
+<span class="lineNum">     695 </span>            :                 }
+<span class="lineNum">     696 </span>            :         
+<span class="lineNum">     697 </span><span class="lineCov">          7 :         curr = used_list[curr].next;</span>
+<span class="lineNum">     698 </span>            :         }
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span>            :         //add to to_delete list
+<span class="lineNum">     701 </span><span class="lineCov">          2 :         to_delete_list[to_delete_count++] = slot_num;</span>
+<span class="lineNum">     702 </span><span class="lineCov">          2 :         MC_DEBUG(&quot;added %d to delete_list(%d items now)\n&quot;,slot_num,to_delete_count);</span>
+<span class="lineNum">     703 </span><span class="lineCov">          2 :         return ERR_OK;</span>
+<span class="lineNum">     704 </span>            : }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span>            : /**
+<span class="lineNum">     707 </span>            :  * delete one mcert from cache
+<span class="lineNum">     708 </span>            :  * @param - slot_num is the slot number to delete
+<a name="709"><span class="lineNum">     709 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     710 </span>            :  */
+<span class="lineNum">     711 </span><span class="lineCov">          2 : static error_t mc_delete_pcert_one(uint16_t slot_num)</span>
+<span class="lineNum">     712 </span>            : {
+<span class="lineNum">     713 </span>            :         error_t ret;
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineCov">          2 :         if (slot_num == 0) slot_num++; // is this required ?</span>
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            :         //delete from used_list and add to free list.
+<span class="lineNum">     718 </span><span class="lineCov">          2 :         ret = delete_from_used_list(slot_num);</span>
+<span class="lineNum">     719 </span><span class="lineCov">          2 :         if (ret == ERR_OK) {</span>
+<span class="lineNum">     720 </span><span class="lineCov">          2 :                 add_to_free_list(slot_num);</span>
+<span class="lineNum">     721 </span>            :         
+<span class="lineNum">     722 </span>            :                 //delete from flash
+<span class="lineNum">     723 </span><span class="lineCov">          2 :                 ret = cert_cache_delete_cert(slot_num);</span>
+<span class="lineNum">     724 </span><span class="lineCov">          2 :                 return ret;</span>
+<span class="lineNum">     725 </span>            :         }
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :         return ERR_OK;</span>
+<span class="lineNum">     727 </span>            : }
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            : /**
+<span class="lineNum">     730 </span>            :  * delete all orphan nodes and their children if any 
+<a name="731"><span class="lineNum">     731 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     732 </span>            :  */
+<span class="lineNum">     733 </span><span class="lineCov">          2 : API error_t cache_check_sanity(void)</span>
+<span class="lineNum">     734 </span>            : {
+<span class="lineNum">     735 </span><span class="lineCov">          2 :         int found = 0;</span>
+<span class="lineNum">     736 </span>            :         error_t ret;
+<span class="lineNum">     737 </span>            :         CertBuffer mcert_i, mcert_j;
+<span class="lineNum">     738 </span>            :         uint8_t iter_i, iter_j;
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineCov">          2 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     741 </span>            : 
+<span class="lineNum">     742 </span>            :         restart_loop:
+<span class="lineNum">     743 </span><span class="lineCov">          2 :         iter_i = used_list_head;</span>
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span><span class="lineCov">         12 :         while(iter_i != 0xFF) {</span>
+<span class="lineNum">     746 </span><span class="lineCov">          8 :                 ret = cert_cache_read_cert(&amp;mcert_i, used_list[iter_i].cache_slot);</span>
+<span class="lineNum">     747 </span><span class="lineCov">          8 :                 if (ret != ERR_OK) {</span>
+<span class="lineNum">     748 </span>            :                         //TODO:handle ERR
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     750 </span>            :                 }
+<span class="lineNum">     751 </span><span class="lineCov">          8 :                 found = 0;</span>
+<span class="lineNum">     752 </span>            :                 
+<span class="lineNum">     753 </span><span class="lineCov">          8 :                 iter_j = used_list_head;</span>
+<span class="lineNum">     754 </span><span class="lineCov">         40 :                 while(iter_j != 0xFF) {</span>
+<span class="lineNum">     755 </span>            :                         //get public key of mcert_j
+<span class="lineNum">     756 </span><span class="lineCov">         32 :                         ret = cert_cache_read_cert(&amp;mcert_j, used_list[iter_j].cache_slot);</span>
+<span class="lineNum">     757 </span><span class="lineCov">         32 :                         if (ret != ERR_OK) {</span>
+<span class="lineNum">     758 </span>            :                                 //TODO:handle ERR
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :                                 return ret;</span>
+<span class="lineNum">     760 </span>            :                         }
+<span class="lineNum">     761 </span>            :                         //if (!memcmp(mcert_j.mc_public_key, mcert_i.mc_signer_id, ISSUER_OCTETS_TO_COMPARE)) {
+<span class="lineNum">     762 </span><span class="lineCov">         32 :                         if ( is_issuer_of(&amp;mcert_j, &amp;mcert_i)) {</span>
+<span class="lineNum">     763 </span><span class="lineCov">          8 :                                 found = 1;</span>
+<span class="lineNum">     764 </span><span class="lineCov">          8 :                                 break;</span>
+<span class="lineNum">     765 </span>            :                         }
+<span class="lineNum">     766 </span><span class="lineCov">         24 :                         iter_j = used_list[iter_j].next;</span>
+<span class="lineNum">     767 </span>            :                 }
+<span class="lineNum">     768 </span><span class="lineCov">          8 :                 if (!found) {</span>
+<span class="lineNum">     769 </span>            :                         //delete mcert_i
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :                         ret = cache_delete_entry_no_lock(used_list[iter_i].cache_slot);</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :                         if (ret != ERR_OK) {</span>
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :                                 return ret;</span>
+<span class="lineNum">     773 </span>            :                         }
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :                         goto restart_loop;</span>
+<span class="lineNum">     775 </span>            :                 }
+<span class="lineNum">     776 </span><span class="lineCov">          8 :                 iter_i = used_list[iter_i].next;</span>
+<span class="lineNum">     777 </span>            :         }
+<span class="lineNum">     778 </span><span class="lineCov">          2 :         if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     779 </span><span class="lineCov">          2 :         return ERR_OK;</span>
+<span class="lineNum">     780 </span>            : }
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            : /**
+<span class="lineNum">     783 </span>            :  * store cache index (used and free lists) to flash
+<a name="784"><span class="lineNum">     784 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     785 </span>            :  */
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 : API error_t cache_store_index(void){</span>
+<span class="lineNum">     787 </span>            :         //write mc_index to flash.
+<span class="lineNum">     788 </span>            :         //TODO
+<span class="lineNum">     789 </span>            :         //return sysvar_set(CERT_CACHE_SYSVAR_ID_INDEX, (const void *)mc_index, sizeof(mc_index));
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :         return ERR_OK;</span>
+<span class="lineNum">     791 </span>            : }
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span>            : /**
+<span class="lineNum">     794 </span>            :  * find issuer of given mcert, does not acquire lock
+<span class="lineNum">     795 </span>            :  * @param - src is the mcert to find issuer of
+<span class="lineNum">     796 </span>            :  * @param - pcert is the issuer to return
+<span class="lineNum">     797 </span>            :  * @param - slot is the slot no of issuer 
+<a name="798"><span class="lineNum">     798 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     799 </span>            :  */
+<span class="lineNum">     800 </span><span class="lineCov">          8 : static error_t cache_find_issuer_no_lock(IN const CertBuffer *src, OUT CertBuffer *pcert, INOUT uint16_t *slot)</span>
+<span class="lineNum">     801 </span>            : {
+<span class="lineNum">     802 </span>            :         uint8_t curr;
+<span class="lineNum">     803 </span>            :         error_t ret;
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span><span class="lineCov">          8 :         if (*slot &lt; ROOT_CERT_SLOT) *slot = ROOT_CERT_SLOT;</span>
+<span class="lineNum">     806 </span><span class="lineCov">          8 :         curr = used_list_head;</span>
+<span class="lineNum">     807 </span><span class="lineCov">         31 :         while (curr != 0xFF) {</span>
+<span class="lineNum">     808 </span><span class="lineCov">         23 :                 ret = cert_cache_read_cert(pcert, used_list[curr].cache_slot);</span>
+<span class="lineNum">     809 </span><span class="lineCov">         23 :                 if (ret != ERR_OK) {</span>
+<span class="lineNum">     810 </span>            :                         //handle error
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :                         return ret;</span>
+<span class="lineNum">     812 </span>            :                 }
+<span class="lineNum">     813 </span>            :                 //if (!memcmp(src-&gt;mc_signer_id, pcert-&gt;mc_public_key, ISSUER_OCTETS_TO_COMPARE)){
+<span class="lineNum">     814 </span><span class="lineCov">         23 :                 if (is_issuer_of(pcert,(CertBuffer *)src)) {</span>
+<span class="lineNum">     815 </span><span class="lineCov">          8 :                         *slot = used_list[curr].cache_slot;</span>
+<span class="lineNum">     816 </span><span class="lineCov">          8 :                         return ERR_OK;</span>
+<span class="lineNum">     817 </span>            :                 }
+<span class="lineNum">     818 </span><span class="lineCov">         15 :                 curr = used_list[curr].next;</span>
+<span class="lineNum">     819 </span>            :         }
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :         return ERR_MC_CACHE_FIND_NO_MATCH;</span>
+<span class="lineNum">     822 </span>            : }
+<span class="lineNum">     823 </span>            : 
+<span class="lineNum">     824 </span>            : /**
+<span class="lineNum">     825 </span>            :  * find issuer of given mcert
+<span class="lineNum">     826 </span>            :  * @param - src is the mcert to find issuer of
+<span class="lineNum">     827 </span>            :  * @param - pcert is the issuer to return
+<span class="lineNum">     828 </span>            :  * @param - slot is the slot no of issuer 
+<a name="829"><span class="lineNum">     829 </span>            :  * @return standard error codes</a>
+<span class="lineNum">     830 </span>            :  */
+<span class="lineNum">     831 </span><span class="lineCov">          1 : API error_t cache_find_issuer(IN const CertBuffer *psubject, OUT CertBuffer *pissuer, INOUT uint16_t *slot)</span>
+<span class="lineNum">     832 </span>            : {
+<span class="lineNum">     833 </span>            :         error_t ret;
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span><span class="lineCov">          1 :         assert(psubject &amp;&amp; pissuer &amp;&amp; slot);</span>
+<span class="lineNum">     836 </span><span class="lineCov">          1 :         *slot = 0;</span>
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span><span class="lineCov">          1 :         if (mc_lock() != ERR_OK) return ERR_MC_CACHE_LOCK_ERROR;</span>
+<span class="lineNum">     839 </span><span class="lineCov">          1 :         ret = cache_find_issuer_no_lock(psubject,pissuer,slot);</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :         if (ret == ERR_OK) {</span>
+<span class="lineNum">     841 </span><span class="lineCov">          1 :                 if (mc_unlock() != ERR_OK) return ERR_MC_CACHE_UNLOCK_ERROR;</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :                 return ERR_OK;</span>
+<span class="lineNum">     843 </span>            :         }
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :         mc_unlock();</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :         return ret;</span>
+<span class="lineNum">     846 </span>            : }
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span>            : /**
+<span class="lineNum">     849 </span>            :  * check type of given mcert
+<span class="lineNum">     850 </span>            :  * @param - pCert is the mcert to be checked
+<a name="851"><span class="lineNum">     851 </span>            :  * @return - type of certificate</a>
+<span class="lineNum">     852 </span>            :  */
+<span class="lineNum">     853 </span><span class="lineCov">         10 : static enum mc_types get_mcert_type(CertBuffer *pCert)</span>
+<span class="lineNum">     854 </span>            : {
+<span class="lineNum">     855 </span>            :         //TODO - identify a root certificate, currently checking only self-signed or not
+<span class="lineNum">     856 </span><span class="lineCov">         10 :         if ( is_issuer_of(pCert,pCert)) </span>
+<span class="lineNum">     857 </span><span class="lineCov">          2 :                 return MCERT_TYPE_ROOT;</span>
+<span class="lineNum">     858 </span>            :         else
+<span class="lineNum">     859 </span><span class="lineCov">          8 :                 return MCERT_TYPE_NOTROOT;</span>
+<span class="lineNum">     860 </span>            : }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            : /**
+<span class="lineNum">     863 </span>            :  * check if one mcert is child of another
+<span class="lineNum">     864 </span>            :  * @param - pCert may be parent
+<span class="lineNum">     865 </span>            :  * @param - maybe_child may be child 
+<span class="lineNum">     866 </span>            :  * @return 1 if maybe_child is child, 0 otherwise
+<a name="867"><span class="lineNum">     867 </span>            :  */</a>
+<span class="lineNum">     868 </span>            : //static int is_child_of(CertBuffer *pCert, CertBuffer *maybe_child)
+<span class="lineNum">     869 </span><span class="lineCov">         72 : static int is_issuer_of(CertBuffer *maybe_issuer, CertBuffer *given)</span>
+<span class="lineNum">     870 </span>            : {
+<span class="lineNum">     871 </span><span class="lineCov">        180 :         if (given-&gt;dc.issuer.len == maybe_issuer-&gt;dc.subject.len                          &amp;&amp; </span>
+<span class="lineNum">     872 </span><span class="lineCov">         72 :                      !memcmp(maybe_issuer-&gt;buffer + maybe_issuer-&gt;dc.subject.idx,</span>
+<span class="lineNum">     873 </span><span class="lineCov">         72 :                                 given-&gt;buffer + given-&gt;dc.issuer.idx, given-&gt;dc.issuer.len)    &amp;&amp;</span>
+<span class="lineNum">     874 </span><span class="lineCov">         18 :                      maybe_issuer-&gt;dc.SubjKeyID.len == given-&gt;dc.AuthKeyID.len                    &amp;&amp;</span>
+<span class="lineNum">     875 </span><span class="lineCov">         18 :                      !memcmp(maybe_issuer-&gt;buffer + maybe_issuer-&gt;dc.SubjKeyID.idx,</span>
+<span class="lineNum">     876 </span><span class="lineCov">         18 :                                 given-&gt;buffer + given-&gt;dc.AuthKeyID.idx, given-&gt;dc.AuthKeyID.len) ) {</span>
+<span class="lineNum">     877 </span><span class="lineCov">         18 :                         return 1;</span>
+<span class="lineNum">     878 </span>            :         }
+<span class="lineNum">     879 </span><span class="lineCov">         54 :         return 0;</span>
+<span class="lineNum">     880 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.10</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
