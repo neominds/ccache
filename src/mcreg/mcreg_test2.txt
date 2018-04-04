@@ -1,0 +1,19 @@
+#Test - 2: 
+create
+sign self
+print_cert
+expect pass insert
+editbuf serial *a2
+editbuf subject *a2
+editbuf subjkeyid *a2
+create
+sign
+print_cert
+expect pass insert
+#addmany 3 at *a2 serial *11 *12 *13
+addmany 160 at *a2 serial auto
+#print_cert
+#print_index
+print_index
+print_keystore
+print Test2 complete.

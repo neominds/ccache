@@ -55,7 +55,7 @@
 #define TOKEN_SKID		33
 #define TOKEN_SERIAL		34
 #define TOKEN_PRINT_KEYSTORE	35
-#define TOKEN_BULK_INSERT	36
+#define TOKEN_ADDMANY		36
 
 #define CERT_ELEMENT_MAXLEN_SERIALNO	9//8?
 #define CERT_ELEMENT_MAXLEN_SUBJECT	102
@@ -95,11 +95,14 @@ struct ec_key_store {
 } key_store[KEY_STORE_SIZE];
 #define VALID 1
 #define INVALID 0
-#define KEY_STORE_FULL -1
-#define KEY_STORE_ERROR -1
+#define KEY_STORE_FULL 15
+#define KEY_STORE_ERROR 16
+#define FOUND 1
+#define NOT_FOUND 0
 void print_keystore();
 uint8_t find_keypair_from_store(uint8_t *serialNumber);
-uint8_t delete_keypair_from_store(uint8_t *serialNumber);
+uint8_t delete_keypair_from_store();
+uint8_t is_slot_in_used_list(uint8_t slot); 
 
 error_t CheckmCertValidity(CertBuffer *pcert);
 
@@ -108,7 +111,6 @@ error_t CheckmCertValidity(CertBuffer *pcert)
 #ifdef LINUX
 	time_t curr;
 	curr = time(NULL);
-
 	if (curr) {
 		//TODO: compare x.509 notAfter (pcert->notAfter) to curr.
 		if (curr >= pcert->dc.notBefore && curr <= pcert->dc.notAfter)
@@ -238,25 +240,38 @@ uint8_t add_keypair_to_store(uint8_t *serialNumber, uint8_t *subject, EC_KEY *ec
 	return 0;
 }
 
-uint8_t delete_keypair_from_store(uint8_t *serialNumber)
+extern uint8_t used_list_head;
+extern uint8_t free_list_head;
+extern struct _mc_list used_list[TOTAL_MCERT_SLOTS];
+extern struct _mc_list free_list[TOTAL_MCERT_SLOTS];
+
+uint8_t delete_keypair_from_store()
 {
-	//TODO:currently  delets only using serialNumber
-	uint8_t i,found=0;
+	uint8_t i;
 	for(i = 0;i < KEY_STORE_SIZE;i++){
-		if(key_store[i].valid == VALID){
-			if (!memcmp(key_store[i].serialNumber, serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO)){
-				found = 1;
-				break;	
-			}
-		}
-	
+			if(key_store[i].valid == VALID){
+				if(!is_slot_in_used_list(key_store[i].slot_no))
+				{
+					key_store[i].valid = INVALID;
+				}
+			}	
 	}
-	
-	if(found)
-		key_store[i].valid = INVALID;
-	else return KEY_STORE_ERROR;
+//	else return KEY_STORE_ERROR;
 	
 return 0;
+
+}
+
+uint8_t is_slot_in_used_list(uint8_t slot) 
+{ 
+	uint8_t curr = used_list_head;
+	 while (curr != 0xFF) 
+		{
+			 if (used_list[curr].cache_slot == slot) 
+			 return FOUND; 
+			 curr = used_list[curr].next;
+	 	}
+	 return NOT_FOUND; 
 }
 
 uint8_t find_keypair_from_store(uint8_t *serialNumber)
@@ -271,7 +286,6 @@ uint8_t find_keypair_from_store(uint8_t *serialNumber)
 		}
 	
 	}
-	// Test code
 	if(found) 
 		printf("The serialNumber entry available in the list\n");
 	else return KEY_STORE_ERROR;
@@ -428,6 +442,7 @@ uint8_t get_token_id(char *string)
 	if (!strcasecmp(string, "using")) return TOKEN_USING;
 	if (!strcasecmp(string, "self")) return TOKEN_SELF;
 	if (!strcasecmp(string, "check_sanity")) return TOKEN_CHECK_SANITY;
+	if (!strcasecmp(string, "addmany")) return TOKEN_ADDMANY;
 
 	if (!strcasecmp(string, "oper")) return TOKEN_OPER;
 	if (!strcasecmp(string, "bysubj")) return TOKEN_BYSUBJ;
@@ -664,11 +679,6 @@ void check_and_report_result(error_t libret, uint8_t expected_result, int8_t *li
 	}
 }
 
-extern uint8_t used_list_head;
-extern uint8_t free_list_head;
-extern struct _mc_list used_list[TOTAL_MCERT_SLOTS];
-extern struct _mc_list free_list[TOTAL_MCERT_SLOTS];
-
 void print_index()
 {
 	struct _mc_list item;
@@ -725,12 +735,12 @@ CertBuffer find_result_pcert, find_result_issuer;
 
 void print_keystore()
 {
-	uint8_t i;
+	uint16_t i;
 	for(i=0;i<KEY_STORE_SIZE;i++)
 	{
 		if(key_store[i].valid == VALID){
 			printf("key_store[%d].serialNumber: ",i);hexdump(key_store[i].serialNumber,CERT_ELEMENT_MAXLEN_SERIALNO);
-			//printf("key_store[%d].slot_no: ",key_store[i].slot_no);
+			printf("key_store[%d].slot_no=%d ",i,key_store[i].slot_no);
 			printf("\n");
 		}
 	}
@@ -866,6 +876,9 @@ int main(int argc, char *argv[])
 				case TOKEN_INSERT:
 					{
 						uint16_t slot = 0;
+						//int ii;
+						//if ( *(ram_cert.buffer + ram_cert.dc.serialNumber.idx) == 0xf8) 
+						//{ ii++; }	
 						libret = cache_insert_cert(&ram_cert, &slot);
 						update_slotno_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, slot);
 						check_and_report_result(libret, expected_result, line, lc);
@@ -881,6 +894,7 @@ int main(int argc, char *argv[])
 							sscanf(token,"%hhu",(uint8_t *)&slot_to_delete);
 							libret = cache_delete_entry(slot_to_delete);
 							check_and_report_result(libret, expected_result, line, lc);
+							delete_keypair_from_store();
 						}
 						if (!strcasecmp(token,"byid")){
 							//find and delete
@@ -904,7 +918,7 @@ int main(int argc, char *argv[])
 									&tmpcert, &slot_to_delete);
 							if (libret != ERR_OK) goto check_report;
 							libret = cache_delete_entry(slot_to_delete);
-							//delete_keypair_from_store(serial);
+							delete_keypair_from_store();
 check_report:
 							check_and_report_result(libret, expected_result, line, lc);
 							break;
@@ -1052,11 +1066,18 @@ token_issuer_noparams:
 					{
 						EC_KEY *eckey = NULL;
 						uint8_t pubkey[65];
+						uint8_t ret_keypair;
 						//create key pair, store in keypair_store and set pubkey of test_mcert
 						create_new_ec_key_pair(&eckey, pubkey);
-						add_keypair_to_store((uint8_t *)ram_cert.buffer + ram_cert.dc.serialNumber.idx, 
+						ret_keypair = add_keypair_to_store((uint8_t *)ram_cert.buffer + ram_cert.dc.serialNumber.idx, 
 								(uint8_t *)ram_cert.buffer + ram_cert.dc.subject.idx, eckey, pubkey, 
 								(uint8_t *)ram_cert.buffer + ram_cert.dc.SubjKeyID.idx);
+						if(ret_keypair == KEY_STORE_FULL) 
+						{
+							printf("KEYSTORE FULL\n");
+							//return 0;
+							break;
+						}
 						memcpy(ram_cert.buffer + ram_cert.dc.subjectPublicKey.idx, pubkey, CERT_ELEMENT_MAXLEN_PUBKEY);
 						//TODO: update AuthKeyID and subjKeyID ?
 						//
@@ -1154,6 +1175,86 @@ noparams_sign_using:
 					libret = cache_check_sanity();	
 					check_and_report_result(libret, expected_result, line, lc);
 
+					break;
+	
+				case TOKEN_ADDMANY:
+#if 1						
+					{
+						uint16_t range,auto_serial=1;
+						uint16_t slot = 0;
+						uint8_t serial[CERT_ELEMENT_MAXLEN_SERIALNO];
+						uint8_t issuer[CERT_ELEMENT_MAXLEN_ISSUER];
+						uint8_t subject[CERT_ELEMENT_MAXLEN_ISSUER];
+						EC_KEY *signer_key = NULL;
+						uint8_t *signer_pubkey = NULL,*issuer_subjkeyid;	
+						token = get_next_token((char *)line);
+						sscanf(token,"%hu",&range);
+						token = get_next_token((char *)line);
+						//if(token == NULL) goto token_addmany_noparams;
+						if(token == NULL){
+							printf("Syntax error add many command\n");
+							printf("Syntax addmany <decimal_number_n at <serialoctet> serials auto|<serialoctet1 serialoctet2 .. serialoctetn>>\n");
+							return 0;
+						}
+						if(!strcasecmp(token,"at"))
+						{
+							token = get_next_token((char *)line);
+							parse_hexstring(token, serial, CERT_ELEMENT_MAXLEN_SERIALNO);
+							//get issuer from stor by serialid
+							libret = get_issuer_from_store(serial, issuer);
+							if (libret) goto check_report;
+							token = get_next_token((char *)line);
+							if(!strcasecmp(token,"serial"))
+							{
+
+									EC_KEY *eckey = NULL;
+									uint8_t pubkey[65];
+									uint8_t ret_keypair;
+									token = get_next_token((char *)line);
+									for(i=0;i<range;i++){
+									if(strcasecmp(token,"auto")){  // TODO comparation not correct
+									parse_hexstring(token, ram_cert.buffer + ram_cert.dc.serialNumber.idx, CERT_ELEMENT_MAXLEN_SERIALNO);
+									parse_hexstring(token, ram_cert.buffer + ram_cert.dc.subject.idx, CERT_ELEMENT_MAXLEN_SUBJECT);
+									parse_hexstring(token, ram_cert.buffer + ram_cert.dc.SubjKeyID.idx, CERT_ELEMENT_MAXLEN_SUBJKEYID);
+									token = get_next_token((char *)line);
+									}
+									else
+									{
+										memset(ram_cert.buffer + ram_cert.dc.serialNumber.idx,auto_serial,CERT_ELEMENT_MAXLEN_SERIALNO);
+										memset(ram_cert.buffer + ram_cert.dc.subject.idx,auto_serial, CERT_ELEMENT_MAXLEN_SUBJECT);
+										memset(ram_cert.buffer + ram_cert.dc.SubjKeyID.idx,auto_serial, CERT_ELEMENT_MAXLEN_SUBJKEYID);
+										auto_serial++;
+									}	
+									create_new_ec_key_pair(&eckey, pubkey);
+									ret_keypair = add_keypair_to_store((uint8_t *)ram_cert.buffer + ram_cert.dc.serialNumber.idx, 
+											(uint8_t *)ram_cert.buffer + ram_cert.dc.subject.idx, eckey, pubkey, 
+											(uint8_t *)ram_cert.buffer + ram_cert.dc.SubjKeyID.idx);
+									if(ret_keypair == KEY_STORE_FULL) 
+									{
+										printf("KEYSTORE FULL\n");
+										//return 0;
+										break;
+									}
+									memcpy(ram_cert.buffer + ram_cert.dc.subjectPublicKey.idx, pubkey, CERT_ELEMENT_MAXLEN_PUBKEY);
+									// sign 
+									get_keypair_from_store(serial,&signer_key,&signer_pubkey,subject);
+									get_subjkeyid_from_store(serial, &issuer_subjkeyid);
+									libret = sign_cert(&ram_cert,signer_key,signer_pubkey,subject,issuer_subjkeyid);
+									if (libret != ERR_OK) {
+										printf("sign_cert returned Error\n");
+										break;
+									}
+									update_issuer_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, subject, issuer_subjkeyid);
+									// insert
+									libret = cache_insert_cert(&ram_cert, &slot);
+									update_slotno_to_store(ram_cert.buffer + ram_cert.dc.serialNumber.idx, slot);
+									}
+							}
+
+					}
+					check_and_report_result(libret, expected_result, line, lc);
+#endif
+			}
 					break;
 
 				case TOKEN_PRINT_INDEX:
