@@ -246,7 +246,7 @@ error_t mc_cache_init()
                 free_list[i].available = NOT_AVAILABLE;
                 free_list[i].next = i+1;
         }
-        free_list[i-1].next = 0xFF;
+        free_list[i-2].next = 0xFF;
 
 	//TODO: read entries from cache and add to used_list.
 
